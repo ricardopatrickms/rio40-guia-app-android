@@ -47,7 +47,7 @@ import br.com.rio40graus.guiascale.rede.ReservaEmbarque
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.tema.FormaCartao
-import br.com.rio40graus.guiascale.ui.MapaOsm
+import br.com.rio40graus.guiascale.ui.MapaGoogle
 import br.com.rio40graus.guiascale.ui.PinoMapa
 import java.util.Calendar
 
@@ -217,7 +217,7 @@ fun TelaEmbarque(
                         .height(380.dp)
                         .clip(FormaCartao),
                 ) {
-                    MapaOsm(
+                    MapaGoogle(
                         pinos = comCoordenada.map { (_, r) ->
                             PinoMapa(
                                 id = r.id,
@@ -424,7 +424,7 @@ private fun ProximoEmbarque(reserva: ReservaEmbarque, minhaPosicao: Location?) {
 /**
  * O balão do pino, com o mesmo conteúdo do Popup do Leaflet no web.
  *
- * Desenhado em Compose por cima do mapa, e não como janela do osmdroid: assim
+ * Desenhado em Compose por cima do mapa, e não como janela do Maps: assim
  * a tipografia, o selo de status e o botão são os mesmos do resto do app.
  */
 @Composable

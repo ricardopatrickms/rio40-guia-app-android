@@ -9,6 +9,39 @@ morre quando a aba perde o foco.
 Android Studio → Open → apontar para esta pasta. Ele baixa o SDK, gera o
 `gradle-wrapper.jar` e sincroniza. Precisa de JDK 17.
 
+### Sem instalar nada: Docker
+
+Quem não tem JDK nem SDK na máquina compila pelo contêiner. A imagem traz JDK
+17, o SDK 35 e as build-tools; o código entra por volume, então o APK sai em
+`app/build/outputs/apk/debug/` na própria pasta do projeto, com o seu usuário
+como dono.
+
+    ./instalar.sh                                  # compila e instala
+    ./instalar.sh http://192.168.0.10:8092/api/    # apontando para outra API
+
+O `docker-compose.yml` fica na raiz do `rio40`, junto com a guias-api, o
+scale-guide-pro e o rio40graus — todos são um projeto Docker só. Para apenas
+compilar, é de lá que se chama:
+
+    cd ../.. && docker compose run --rm android ./gradlew assembleDebug
+
+O primeiro build leva uns minutos e baixa as dependências; a partir do segundo
+elas ficam no volume `gradle-cache` e o build cai para segundos.
+
+**O contêiner não instala no aparelho.** O daemon do Docker Desktop roda dentro
+de uma VM e não enxerga o USB nem o servidor adb da máquina — por isso o
+`instalar.sh` compila lá dentro e chama o `adb` daqui de fora. Aponte outro com
+`ADB=/caminho/para/adb ./instalar.sh` se o seu não estiver no PATH.
+
+Pelo mesmo motivo, `10.0.2.2` (o host visto pelo emulador) não vale dentro do
+contêiner: quem precisar falar com a guias-api local a partir dele usa
+`host.docker.internal`.
+
+O `~/.android/debug.keystore` da máquina entra montado no contêiner. É o mesmo
+que o Android Studio usa, e é o que permite ir e voltar entre os dois sem
+desinstalar: para o Android, APK assinado com outra chave é outro aplicativo, e
+a reinstalação para em `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+
 O emulador serve para conferir tela e envio; use a aba **Location → Routes**
 dos Extended Controls para simular movimento. Mas o teste que decide é em
 celular real: o que precisa ser provado é sobreviver horas com a tela apagada

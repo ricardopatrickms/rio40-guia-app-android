@@ -1,10 +1,27 @@
 {
     "logs": [
         {
-            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-61:/values-night-v8/values-night-v8.xml",
+            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-62:/values-night-v8/values-night-v8.xml",
             "map": [
                 {
-                    "source": "/Users/silmaramarinho/Projetos/rio40graus/guia/rio40graus-guia-android/app/src/main/res/values-night/themes.xml",
+                    "source": "/projeto/app/src/main/res/values-night/colors.xml",
+                    "from": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "104",
+                        "endColumns": "39",
+                        "endOffsets": "139"
+                    },
+                    "to": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "39",
+                        "endOffsets": "90"
+                    }
+                },
+                {
+                    "source": "/projeto/app/src/main/res/values-night/themes.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
@@ -20,23 +37,6 @@
                         "endLines": "8",
                         "endColumns": "12",
                         "endOffsets": "471"
-                    }
-                },
-                {
-                    "source": "/Users/silmaramarinho/Projetos/rio40graus/guia/rio40graus-guia-android/app/src/main/res/values-night/colors.xml",
-                    "from": {
-                        "startLines": "3",
-                        "startColumns": "4",
-                        "startOffsets": "104",
-                        "endColumns": "39",
-                        "endOffsets": "139"
-                    },
-                    "to": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "39",
-                        "endOffsets": "90"
                     }
                 }
             ]

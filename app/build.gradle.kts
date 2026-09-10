@@ -39,6 +39,28 @@ android {
          * é pública de propósito, senão a tela de login não teria como mostrar
          * o logo antes de alguém entrar.
          */
+        /*
+         * Chave do Google Maps para Android.
+         *
+         * Vai embutida no APK porque o SDK do Maps a lê do manifesto — não há
+         * como escondê-la, e o Google não espera que se esconda: o que protege
+         * a chave é a restrição no console, que a amarra ao nome do pacote
+         * (br.com.rio40graus.guiascale) e à impressão SHA-1 do certificado de
+         * assinatura. Sem esses dois conferindo, a chave não funciona em app
+         * nenhum, mesmo extraída.
+         *
+         * Duas consequências práticas: a chave precisa listar o SHA-1 do
+         * keystore de DEBUG para o mapa aparecer aqui, e o do keystore de
+         * RELEASE para aparecer em produção. Se o mapa nascer cinza com o
+         * resto funcionando, é quase sempre isso.
+         *
+         * Para testar outra chave sem editar o arquivo:
+         *     ./gradlew -Pguiascale.mapsKey=SUA_CHAVE installDebug
+         */
+        manifestPlaceholders["mapsApiKey"] =
+            (project.findProperty("guiascale.mapsKey") as String?)
+                ?: "AIzaSyAJD4920A7GiI8GQIER0TgqQjWgDAgNN5g"
+
         buildConfigField("String", "SUPABASE_URL", "\"https://gvauopyruthqebwaxrqy.supabase.co\"")
         buildConfigField(
             "String",
@@ -125,12 +147,16 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     /*
-     * Mapa: osmdroid, e não o do Google.
+     * Mapa: Google Maps.
      *
-     * O app web desenha com Leaflet sobre os tiles do OpenStreetMap; o osmdroid
-     * consome os MESMOS tiles, então as duas telas ficam com a mesma cara — que
-     * é o pedido. De quebra dispensa chave de API e Play Services, que o Google
-     * Maps exigiria só para mostrar os pontos de embarque.
+     * maps-compose é o invólucro oficial para Compose — ele cuida do ciclo de
+     * vida do MapView, que fora do Compose exigiria repassar onCreate, onResume,
+     * onPause e onDestroy na mão.
+     *
+     * Exige Play Services no aparelho. Não é problema no público do app (celular
+     * de guia, com Play Store), mas quebra em emulador de imagem "AOSP" — use
+     * uma imagem "Google APIs" ou "Play Store".
      */
-    implementation("org.osmdroid:osmdroid-android:6.1.20")
+    implementation("com.google.maps.android:maps-compose:6.4.1")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
 }

@@ -44,6 +44,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GuiaScale">
 
+        <!--
+            Chave do Google Maps. O SDK a lê daqui, e só daqui — passar por
+            código não existe. O valor vem do manifestPlaceholder definido em
+            app/build.gradle.kts, onde está a explicação de por que ela pode
+            ficar embutida.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
