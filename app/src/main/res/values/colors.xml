@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Azul do painel, o mesmo que o guia vê no app web. -->
+    <color name="ic_launcher_background">#1C4D97</color>
+
+    <!-- O fundo do app web (60 14% 97%). Serve de windowBackground para a
+         janela nascer nesta cor: sem isso o sistema mostra um branco puro no
+         meio segundo antes de o Compose desenhar, e a troca aparece. -->
+    <color name="fundo">#F8F8F6</color>
+</resources>

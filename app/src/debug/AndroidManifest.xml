@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Só o build de debug ganha a exceção de texto claro; o release nem
+         chega a ter este arquivo. -->
+    <application android:networkSecurityConfig="@xml/rede_debug" />
+</manifest>

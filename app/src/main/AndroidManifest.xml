@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!--
+        A permissão que faz o app existir: sem ela o rastreio para assim que o
+        guia sai da tela. O Android obriga a pedi-la SEPARADO, depois da
+        permissão comum, e o usuário precisa escolher "Permitir o tempo todo"
+        numa tela de configurações — ver PermissoesDeLocalizacao.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14 exige declarar o TIPO do serviço, não só o serviço. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- A notificação permanente do rastreio; obrigatória a partir do 13. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Religar o rastreio depois que o aparelho reinicia no meio do dia. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+        Pedir isenção da economia de bateria. Samsung e Xiaomi matam serviço
+        legítimo para poupar energia, e é a causa nº 1 de "sumiu o rastro".
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Sem GPS o app não cumpre a função; melhor não instalar. -->
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="true" />
+
+    <application
+        android:name=".GuiaScaleApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GuiaScale">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.GuiaScale">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            O serviço que mantém a captura viva com o app minimizado.
+
+            `foregroundServiceType="location"` é o que autoriza ler a posição
+            fora da tela; sem isso o Android entrega coordenadas congeladas.
+            `stopWithTask=false` mantém o rastreio quando o guia fecha o app
+            pela lista de recentes — que é o comportamento pedido.
+        -->
+        <service
+            android:name=".rastreio.RastreioService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
+
+    </application>
+
+</manifest>
