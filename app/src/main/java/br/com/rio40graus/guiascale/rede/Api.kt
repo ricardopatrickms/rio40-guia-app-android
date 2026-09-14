@@ -80,9 +80,58 @@ data class ReservaEmbarque(
     val apto: String?,
     val pax: String?,
     val voucher: String?,
+    val passeio: String? = null,
+    val idioma: String? = null,
+    val idioma_id: Int? = null,
+    val adt: Int = 0,
+    val chd: Int = 0,
+    val inf: Int = 0,
+    val jovem: Int = 0,
+    val idoso: Int = 0,
+    val total: Int? = null,
+    val parcial: ParcialEmbarque? = null,
+    val a_receber: Double = 0.0,
+    val pagamentos: List<PagamentoLancado> = emptyList(),
     val status: StatusReserva?,
     val latitude: Double?,
     val longitude: Double?,
+)
+
+data class ParcialEmbarque(
+    val adulto: Int = 0,
+    val chd: Int = 0,
+    val infantil: Int = 0,
+    val jovem: Int = 0,
+    val idoso: Int = 0,
+)
+
+data class PagamentoLancado(
+    val pag_id: Int = 0,
+    val forma_id: Int = 0,
+    val forma: String? = null,
+    val tipo: String? = null,
+    val parcela_id: Int? = null,
+    val parcela: String? = null,
+    val valor: Double = 0.0,
+)
+
+data class FormaPagamento(
+    val id: Int,
+    val nome: String?,
+    val tipo: String?,
+    val credito: Boolean = false,
+)
+
+data class ParcelaOpcao(
+    val id: Int,
+    val nome: String?,
+    val taxa: Double = 0.0,
+)
+
+data class IdiomaOpcao(
+    val id: Int,
+    val nome: String?,
+    val codigo: String?,
 )
 
 data class StatusReserva(
@@ -94,14 +143,52 @@ data class StatusReserva(
 /**
  * Troca de status da reserva no embarque.
  *
- * O guia só pode marcar três: 2 CHECK-IN, 3 NO-SHOW e 8 PARCIAL. Os dois
- * últimos exigem motivo e mexem em fatura — por isso o app manda apenas o
- * check-in, e o resto segue pelo app web, onde a tela para escolher motivo
- * existe. Ver GuiaReservaStatusController.
+ * O guia só pode marcar três: 2 CHECK-IN, 3 NO-SHOW e 8 PARCIAL.
+ * NO-SHOW exige motivo_id; PARCIAL manda quantos NÃO embarcaram por categoria.
+ * Ver GuiaReservaStatusController.
  */
-data class PedidoStatus(val status_id: Int)
+data class PedidoStatus(
+    val status_id: Int,
+    val motivo_id: Int? = null,
+    val adulto: Int? = null,
+    val chd: Int? = null,
+    val infantil: Int? = null,
+    val jovem: Int? = null,
+    val idoso: Int? = null,
+)
+
+data class PedidoIdioma(val idioma_id: Int)
+
+data class PedidoPagamentos(val pagamentos: List<ItemPagamento>)
+
+data class ItemPagamento(
+    val forma_id: Int,
+    val valor: Double,
+    val parcela_id: Int? = null,
+    val pag_id: Int? = null,
+)
+
+data class CategoriaMotivo(val id: Int, val nome: String?)
+
+data class MotivoStatus(
+    val mot_id: Int,
+    val mot_nome: String?,
+    val categoria_id: Int?,
+)
+
+data class RespostaMotivos(
+    val categorias: List<CategoriaMotivo> = emptyList(),
+    val motivos: List<MotivoStatus> = emptyList(),
+)
+
+data class RespostaFormas(val formas: List<FormaPagamento> = emptyList())
+data class RespostaParcelas(val parcelas: List<ParcelaOpcao> = emptyList())
+data class RespostaIdiomas(val idiomas: List<IdiomaOpcao> = emptyList())
 
 const val STATUS_CHECK_IN = 2
+const val STATUS_NO_SHOW = 3
+const val STATUS_PARCIAL = 8
+const val STATUS_RESERVADO = 1
 
 interface ApiGuias {
 
@@ -123,10 +210,34 @@ interface ApiGuias {
     @GET("guia/mapa-embarque")
     suspend fun mapaEmbarque(@Query("data") data: String? = null): RespostaMapas
 
+    @GET("guia/reserva/status-motivos")
+    suspend fun statusMotivos(): RespostaMotivos
+
+    @GET("guia/formas-pagamento")
+    suspend fun formasPagamento(): RespostaFormas
+
+    @GET("guia/parcelas")
+    suspend fun parcelas(): RespostaParcelas
+
+    @GET("guia/idiomas")
+    suspend fun idiomas(): RespostaIdiomas
+
     @POST("guia/reserva/{reservaId}/status")
     suspend fun trocarStatus(
         @Path("reservaId") reservaId: Int,
         @Body corpo: PedidoStatus,
+    ): Response<Unit>
+
+    @POST("guia/reserva/{reservaId}/pagamentos")
+    suspend fun salvarPagamentos(
+        @Path("reservaId") reservaId: Int,
+        @Body corpo: PedidoPagamentos,
+    ): Response<Unit>
+
+    @POST("guia/reserva/{reservaId}/idioma")
+    suspend fun salvarIdioma(
+        @Path("reservaId") reservaId: Int,
+        @Body corpo: PedidoIdioma,
     ): Response<Unit>
 }
 

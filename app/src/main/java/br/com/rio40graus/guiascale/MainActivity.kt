@@ -87,11 +87,18 @@ import androidx.lifecycle.lifecycleScope
 import br.com.rio40graus.guiascale.dados.BancoLocal
 import br.com.rio40graus.guiascale.rastreio.EstadoRastreio
 import br.com.rio40graus.guiascale.rastreio.RastreioService
+import br.com.rio40graus.guiascale.rede.FormaPagamento
+import br.com.rio40graus.guiascale.rede.IdiomaOpcao
+import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.mensagemDeErro
+import br.com.rio40graus.guiascale.rede.ParcelaOpcao
+import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
+import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoStatus
+import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.Sessao
@@ -157,6 +164,12 @@ class MainActivity : ComponentActivity() {
                         aoSair = ::sair,
                         aoCarregarMapas = ::carregarMapas,
                         aoCheckIn = ::checkIn,
+                        aoCarregarMotivos = ::carregarMotivos,
+                        aoCarregarFormas = ::carregarFormas,
+                        aoCarregarParcelas = ::carregarParcelas,
+                        aoCarregarIdiomas = ::carregarIdiomas,
+                        aoSalvarPagamentos = ::salvarPagamentos,
+                        aoSalvarIdioma = ::salvarIdioma,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { RastreioService.iniciar(this) },
                         aoDesligar = { RastreioService.parar(this) },
@@ -217,34 +230,123 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Check-in de uma reserva, e o começo do rastreio.
+     * Troca de status no embarque (check-in, no-show ou parcial).
      *
-     * O primeiro check-in do dia é o que liga a captura. É o momento certo:
-     * antes dele o guia está a caminho por conta própria, e gravar esse trecho
-     * só gastaria bateria e encheria a fila com um percurso que não é do
-     * passeio de ninguém. Do primeiro embarque em diante, cada ponto sai
+     * O primeiro CHECK-IN do dia liga o rastreio. É o momento certo: antes
+     * dele o guia está a caminho por conta própria, e gravar esse trecho só
+     * gastaria bateria. Do primeiro embarque em diante, cada ponto sai
      * carimbado com o mapa.
-     *
-     * A permissão é pedida antes de ligar, e não depois: sem a de "o tempo
-     * todo" o serviço morre assim que a tela apaga — que é exatamente quando o
-     * guia guarda o celular no bolso e a van sai.
      */
-    private fun checkIn(reservaId: Int, mapaId: Int, aoTerminar: (String?) -> Unit) {
+    private fun checkIn(
+        reservaId: Int,
+        mapaId: Int,
+        statusId: Int,
+        motivoId: Int?,
+        parcial: Map<String, Int>?,
+        aoTerminar: (String?) -> Unit,
+    ) {
         lifecycleScope.launch {
             try {
-                val resposta = Rede.api.trocarStatus(reservaId, PedidoStatus(STATUS_CHECK_IN))
+                val corpo = PedidoStatus(
+                    status_id = statusId,
+                    motivo_id = motivoId,
+                    adulto = parcial?.get("adulto"),
+                    chd = parcial?.get("chd"),
+                    infantil = parcial?.get("infantil"),
+                    jovem = parcial?.get("jovem"),
+                    idoso = parcial?.get("idoso"),
+                )
+                val resposta = Rede.api.trocarStatus(reservaId, corpo)
 
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
                     return@launch
                 }
 
-                if (!EstadoRastreio.ativo(this@MainActivity)) {
+                if (statusId == STATUS_CHECK_IN && !EstadoRastreio.ativo(this@MainActivity)) {
                     pedirPermissoes()
                     RastreioService.iniciar(this@MainActivity, mapaId)
                 }
 
                 aoTerminar(null)
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarMotivos(aoTerminar: (RespostaMotivos?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.statusMotivos(), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarFormas(aoTerminar: (List<FormaPagamento>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.formasPagamento().formas, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarParcelas(aoTerminar: (List<ParcelaOpcao>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.parcelas().parcelas, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarIdiomas(aoTerminar: (List<IdiomaOpcao>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.idiomas().idiomas, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarPagamentos(
+        reservaId: Int,
+        itens: List<ItemPagamento>,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarPagamentos(reservaId, PedidoPagamentos(itens))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarIdioma(
+        reservaId: Int,
+        idiomaId: Int,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarIdioma(reservaId, PedidoIdioma(idiomaId))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
             } catch (erro: Exception) {
                 aoTerminar(mensagemDeErro(this@MainActivity, erro))
             }
@@ -316,7 +418,13 @@ private fun Tela(
     aoEntrar: (String, String, (String?) -> Unit) -> Unit,
     aoSair: (() -> Unit) -> Unit,
     aoCarregarMapas: ((List<MapaEmbarque>?, String?) -> Unit) -> Unit,
-    aoCheckIn: (Int, Int, (String?) -> Unit) -> Unit,
+    aoCheckIn: (Int, Int, Int, Int?, Map<String, Int>?, (String?) -> Unit) -> Unit,
+    aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
+    aoCarregarFormas: ((List<FormaPagamento>?, String?) -> Unit) -> Unit,
+    aoCarregarParcelas: ((List<ParcelaOpcao>?, String?) -> Unit) -> Unit,
+    aoCarregarIdiomas: ((List<IdiomaOpcao>?, String?) -> Unit) -> Unit,
+    aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
+    aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: () -> Unit,
     aoDesligar: () -> Unit,
@@ -407,9 +515,16 @@ private fun Tela(
             when (aba) {
                 Aba.EMBARQUE -> TelaEmbarque(
                     aoCarregar = aoCarregarMapas,
-                    aoCheckIn = aoCheckIn,
+                    aoTrocarStatus = aoCheckIn,
+                    aoCarregarMotivos = aoCarregarMotivos,
+                    aoCarregarFormas = aoCarregarFormas,
+                    aoCarregarParcelas = aoCarregarParcelas,
+                    aoCarregarIdiomas = aoCarregarIdiomas,
+                    aoSalvarPagamentos = aoSalvarPagamentos,
+                    aoSalvarIdioma = aoSalvarIdioma,
                     minhaPosicao = minhaPosicao,
                     trajeto = trajeto,
+                    aoPedirLocalizacao = aoPedirPermissoes,
                 )
 
                 Aba.RASTREIO -> Painel(

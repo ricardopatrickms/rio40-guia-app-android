@@ -1,17 +1,46 @@
 package br.com.rio40graus.guiascale.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
+import br.com.rio40graus.guiascale.R
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.BitmapDescriptor
@@ -19,15 +48,21 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.CameraPositionState
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.MapsComposeExperimentalApi
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Um ponto desenhável no mapa, já sem nada de rede nem de tela.
@@ -48,10 +83,13 @@ data class PinoMapa(
  * desenhados aqui em bitmap, e não vêm do Google.
  *
  * O toque no pino não abre a janelinha padrão do Maps: ele apenas avisa quem
- * chamou, e o cartão de detalhes é desenhado em Compose por cima. É o que
- * mantém o conteúdo do balão igual ao do web — tipografia, selo de status e
- * botão — em vez de uma janela com o visual do Google.
+ * chamou, e o cartão de detalhes é desenhado em Compose por cima.
+ *
+ * [paddingTopo] e [paddingBase] tiram da área “útil” o cartão de Embarque e o
+ * painel de pontos. Sem isso o fitBounds centra os pinos na tela inteira — e
+ * eles ficam escondidos atrás do bottom sheet, como se não existissem.
  */
+@OptIn(MapsComposeExperimentalApi::class)
 @Composable
 fun MapaGoogle(
     pinos: List<PinoMapa>,
@@ -59,20 +97,21 @@ fun MapaGoogle(
     trajeto: List<Pair<Double, Double>>,
     aoTocarPino: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    paddingTopo: Dp = 100.dp,
+    paddingBase: Dp = 300.dp,
+    /** Reserva selecionada na lista: o mapa recentraliza nela, como no web. */
+    focarEm: Int? = null,
+    /** Sem permissão de GPS: o toque no botão pede a liberação. */
+    aoPedirLocalizacao: () -> Unit = {},
 ) {
     val contexto = LocalContext.current
+    val density = LocalDensity.current
+    val escopo = rememberCoroutineScope()
 
     /*
      * BitmapDescriptorFactory só funciona depois que o SDK do Maps carregou as
      * classes nativas, e aqui os ícones nascem ANTES do primeiro desenho do
      * mapa — então a inicialização tem de vir antes deles.
-     *
-     * Precisa ser `remember`, e não `LaunchedEffect`: o efeito só roda DEPOIS
-     * da composição terminar, enquanto os `remember` dos ícones logo abaixo
-     * rodam DURANTE. Com o efeito, a fábrica ainda estava vazia na primeira
-     * passagem e o app morria com "IBitmapDescriptorFactory is not
-     * initialized". Os blocos de `remember` executam na ordem em que aparecem,
-     * e é isso que garante que este venha primeiro.
      */
     remember { MapsInitializer.initialize(contexto) }
 
@@ -80,94 +119,222 @@ fun MapaGoogle(
         position = CameraPosition.fromLatLngZoom(LatLng(-22.9068, -43.1729), 13f)
     }
 
-    // Recriar os ícones a cada recomposição custaria um bitmap novo por pino a
-    // cada 3 segundos, que é o ritmo com que a tela relê posição e fila.
-    val iconesPorCor = remember(pinos.map { it.cor }.toSet()) {
-        pinos.map { it.cor }.toSet().associateWith { cor -> iconeDoPino(contexto, cor) }
-    }
-    val iconeDoGuia = remember { iconeDoPontoDoGuia(contexto) }
+    val cores = remember(pinos) { pinos.map { it.cor }.toSet() }
+    var iconesPorCor by remember { mutableStateOf<Map<Int, BitmapDescriptor>>(emptyMap()) }
+    var iconeDoGuia by remember { mutableStateOf<BitmapDescriptor?>(null) }
+    var mapaPronto by remember { mutableStateOf(false) }
 
-    GoogleMap(
-        modifier = modifier,
-        cameraPositionState = camera,
-        properties = MapProperties(mapType = MapType.NORMAL),
-        uiSettings = MapUiSettings(
-            // O web também não mostra botões de zoom no celular, e a pinça já
-            // resolve. O botão de "minha localização" sai porque a posição do
-            // guia já é desenhada como pino próprio.
-            zoomControlsEnabled = false,
-            myLocationButtonEnabled = false,
-            mapToolbarEnabled = false,
-        ),
-        onMapClick = { },
-    ) {
-        if (trajeto.size > 1) {
-            // Mesma linha do web: azul grossa, levemente transparente.
-            Polyline(
-                points = trajeto.map { LatLng(it.first, it.second) },
-                color = androidx.compose.ui.graphics.Color(0xD92563EB),
-                width = 12f,
-            )
+    // Ícones só depois do mapa pronto: antes disso a fábrica às vezes devolve
+    // descriptor inválido e o pino some sem erro.
+    LaunchedEffect(mapaPronto, cores) {
+        if (!mapaPronto) return@LaunchedEffect
+        iconesPorCor = cores.associateWith { cor ->
+            runCatching { iconeDoPino(contexto, cor) }.getOrElse {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+            }
+        }
+        iconeDoGuia = runCatching { iconeDoPontoDoGuia(contexto) }.getOrElse {
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+        }
+    }
+
+    val paddingTopoPx = with(density) { paddingTopo.roundToPx() }
+    val paddingBasePx = with(density) { paddingBase.roundToPx() }
+
+    // Só os pontos de embarque entram na chave: GPS do guia muda a cada poucos
+    // segundos e cancelaria o enquadramento no meio (câmera presa no Rio default).
+    val chavePinos = remember(pinos) {
+        pinos.joinToString("|") { "${it.id}:${"%.5f".format(it.latitude)}:${"%.5f".format(it.longitude)}" }
+    }
+
+    Box(modifier = modifier) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = camera,
+            contentPadding = PaddingValues(top = paddingTopo, bottom = paddingBase),
+            properties = MapProperties(mapType = MapType.NORMAL),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = false,
+                myLocationButtonEnabled = false,
+                mapToolbarEnabled = false,
+            ),
+            onMapLoaded = { mapaPronto = true },
+            onMapClick = { },
+        ) {
+            MapEffect(chavePinos, paddingTopoPx, paddingBasePx) { map ->
+                map.setPadding(0, paddingTopoPx, 0, paddingBasePx)
+
+                val pontos = pinos.map { LatLng(it.latitude, it.longitude) }
+                if (pontos.isEmpty()) return@MapEffect
+
+                // newLatLngBounds exige largura/altura > 0; no emulador isso pode
+                // atrasar alguns frames depois do onMapLoaded.
+                repeat(12) { tentativa ->
+                    val ok = runCatching {
+                        if (pontos.size == 1) {
+                            map.moveCamera(CameraUpdateFactory.newLatLngZoom(pontos.first(), 15f))
+                        } else {
+                            val limites = LatLngBounds.builder()
+                                .apply { pontos.forEach { include(it) } }
+                                .build()
+                            map.moveCamera(CameraUpdateFactory.newLatLngBounds(limites, 80))
+                        }
+                    }.isSuccess
+                    if (ok) return@MapEffect
+                    delay(50L * (tentativa + 1))
+                }
+
+                // Último recurso: pelo menos um pino na tela.
+                runCatching {
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(pontos.first(), 14f))
+                }
+            }
+
+            if (trajeto.size > 1) {
+                Polyline(
+                    points = trajeto.map { LatLng(it.first, it.second) },
+                    color = androidx.compose.ui.graphics.Color(0xD92563EB),
+                    width = 12f,
+                )
+            }
+
+            pinos.forEach { p ->
+                key(p.id) {
+                    val icone = iconesPorCor[p.cor]
+                        ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                    Marker(
+                        state = rememberMarkerState(
+                            key = "pino-${p.id}",
+                            position = LatLng(p.latitude, p.longitude),
+                        ),
+                        icon = icone,
+                        anchor = Offset(0.5f, 1f),
+                        title = p.titulo,
+                        zIndex = 1f,
+                        onClick = {
+                            aoTocarPino(p.id)
+                            true
+                        },
+                    )
+                }
+            }
+
+            minhaPosicao?.let { (lat, lon) ->
+                key("guia") {
+                    val estadoGuia = rememberMarkerState(key = "guia", position = LatLng(lat, lon))
+                    LaunchedEffect(lat, lon) {
+                        estadoGuia.position = LatLng(lat, lon)
+                    }
+                    Marker(
+                        state = estadoGuia,
+                        icon = iconeDoGuia
+                            ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE),
+                        anchor = Offset(0.5f, 0.5f),
+                        zIndex = 2f,
+                        onClick = { true },
+                    )
+                }
+            }
         }
 
-        pinos.forEach { p ->
-            Marker(
-                state = rememberMarkerState(
-                    key = p.id.toString(),
-                    position = LatLng(p.latitude, p.longitude),
+        // Logo acima do painel expansível (paddingBase = peek do bottom sheet).
+        FloatingActionButton(
+            onClick = {
+                escopo.launch {
+                    val pos = minhaPosicao
+                        ?: obterPosicaoAgora(contexto)
+                        ?: trajeto.lastOrNull()
+
+                    if (pos == null) {
+                        Toast.makeText(
+                            contexto,
+                            contexto.getString(R.string.embarque_sem_localizacao),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        aoPedirLocalizacao()
+                        return@launch
+                    }
+
+                    if (!mapaPronto) return@launch
+                    runCatching {
+                        camera.animate(
+                            CameraUpdateFactory.newLatLngZoom(
+                                LatLng(pos.first, pos.second),
+                                16f,
+                            ),
+                        )
+                    }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .zIndex(2f)
+                .padding(end = 16.dp, bottom = paddingBase + 12.dp)
+                .size(48.dp),
+            shape = FloatingActionButtonDefaults.smallShape,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = if (minhaPosicao != null) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MyLocation,
+                contentDescription = stringResource(R.string.embarque_centralizar),
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+
+    // Toque na lista (ou no balao): vai até o ponto, como o "Ver no mapa" do web.
+    LaunchedEffect(focarEm, mapaPronto) {
+        if (!mapaPronto) return@LaunchedEffect
+        val id = focarEm ?: return@LaunchedEffect
+        val pino = pinos.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        runCatching {
+            camera.animate(
+                CameraUpdateFactory.newLatLngZoom(
+                    LatLng(pino.latitude, pino.longitude),
+                    16f,
                 ),
-                icon = iconesPorCor[p.cor],
-                // A ponta da gota é que aponta o endereço, não o centro dela.
-                anchor = Offset(0.5f, 1f),
-                title = p.titulo,
-                onClick = {
-                    aoTocarPino(p.id)
-                    // true: consome o toque, e o Maps não abre a própria janela
-                    // nem recentraliza o mapa por baixo do cartão.
-                    true
-                },
             )
         }
-
-        minhaPosicao?.let { (lat, lon) ->
-            Marker(
-                state = rememberMarkerState(key = "guia", position = LatLng(lat, lon)),
-                icon = iconeDoGuia,
-                anchor = Offset(0.5f, 0.5f),
-                onClick = { true },
-            )
-        }
-    }
-
-    /*
-     * Enquadra tudo de uma vez, como o FitBounds do web. Só na primeira vez que
-     * há pontos: refazer isso a cada atualização desfaria o zoom que o guia
-     * acabou de dar para achar a rua.
-     */
-    val pontos = pinos.map { LatLng(it.latitude, it.longitude) } +
-        listOfNotNull(minhaPosicao?.let { LatLng(it.first, it.second) })
-
-    LaunchedEffect(pontos.isNotEmpty()) {
-        if (pontos.isEmpty()) return@LaunchedEffect
-        enquadrar(camera, pontos)
     }
 }
 
-/** Move a câmera para caber todos os pontos, com folga nas bordas. */
-private suspend fun enquadrar(camera: CameraPositionState, pontos: List<LatLng>) {
-    if (pontos.size == 1) {
-        camera.animate(CameraUpdateFactory.newLatLngZoom(pontos.first(), 15f))
-        return
-    }
+/**
+ * Pedido ativo de GPS no toque do botão.
+ *
+ * lastLocation sozinho falha no emulador e em aparelhos sem cache recente —
+ * getCurrentLocation força uma leitura nova quando a permissão já existe.
+ */
+private suspend fun obterPosicaoAgora(contexto: Context): Pair<Double, Double>? {
+    val fine = ContextCompat.checkSelfPermission(
+        contexto,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    val coarse = ContextCompat.checkSelfPermission(
+        contexto,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!fine && !coarse) return null
 
-    val limites = LatLngBounds.builder().apply { pontos.forEach { include(it) } }.build()
-    /*
-     * newLatLngBounds exige que o mapa já tenha tamanho medido; chamado cedo
-     * demais ele lança IllegalStateException. Quando isso acontece, centralizar
-     * no primeiro ponto é melhor do que derrubar a tela.
-     */
-    runCatching { camera.animate(CameraUpdateFactory.newLatLngBounds(limites, 96)) }
-        .onFailure { camera.animate(CameraUpdateFactory.newLatLngZoom(pontos.first(), 13f)) }
+    return try {
+        suspendCancellableCoroutine { cont ->
+            val cancelamento = CancellationTokenSource()
+            cont.invokeOnCancellation { cancelamento.cancel() }
+            LocationServices.getFusedLocationProviderClient(contexto)
+                .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancelamento.token)
+                .addOnSuccessListener { loc ->
+                    cont.resume(loc?.let { it.latitude to it.longitude })
+                }
+                .addOnFailureListener { cont.resume(null) }
+        }
+    } catch (_: SecurityException) {
+        null
+    }
 }
 
 /**
@@ -179,8 +346,8 @@ private suspend fun enquadrar(camera: CameraPositionState, pontos: List<LatLng>)
  */
 private fun iconeDoPino(contexto: Context, cor: Int): BitmapDescriptor {
     val d = contexto.resources.displayMetrics.density
-    val largura = (26 * d).toInt()
-    val altura = (36 * d).toInt()
+    val largura = (26 * d).toInt().coerceAtLeast(1)
+    val altura = (36 * d).toInt().coerceAtLeast(1)
     val raio = 13f * d
 
     val bitmap = Bitmap.createBitmap(largura, altura, Bitmap.Config.ARGB_8888)
@@ -214,7 +381,7 @@ private fun iconeDoPino(contexto: Context, cor: Int): BitmapDescriptor {
 /** O círculo azul de "você está aqui", igual ao guideIcon do web. */
 private fun iconeDoPontoDoGuia(contexto: Context): BitmapDescriptor {
     val d = contexto.resources.displayMetrics.density
-    val lado = (22 * d).toInt()
+    val lado = (22 * d).toInt().coerceAtLeast(1)
 
     val bitmap = Bitmap.createBitmap(lado, lado, Bitmap.Config.ARGB_8888)
     val tela = Canvas(bitmap)
