@@ -237,7 +237,7 @@ fun MapaGoogle(
             }
         }
 
-        // Logo acima do painel expansível (paddingBase = peek do bottom sheet).
+        // Igual ao web: canto superior direito do mapa.
         FloatingActionButton(
             onClick = {
                 escopo.launch {
@@ -267,10 +267,10 @@ fun MapaGoogle(
                 }
             },
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.TopEnd)
                 .zIndex(2f)
-                .padding(end = 16.dp, bottom = paddingBase + 12.dp)
-                .size(48.dp),
+                .padding(end = 12.dp, top = 12.dp)
+                .size(40.dp),
             shape = FloatingActionButtonDefaults.smallShape,
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = if (minhaPosicao != null) {
@@ -278,12 +278,12 @@ fun MapaGoogle(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
         ) {
             Icon(
                 imageVector = Icons.Filled.MyLocation,
                 contentDescription = stringResource(R.string.embarque_centralizar),
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
     }

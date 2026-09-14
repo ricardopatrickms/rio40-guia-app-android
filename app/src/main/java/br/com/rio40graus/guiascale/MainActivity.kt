@@ -13,39 +13,44 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PinDrop
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import android.widget.Toast
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonPin
+import androidx.compose.material.icons.filled.PinDrop
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -56,7 +61,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,10 +75,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -92,24 +100,25 @@ import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
-import br.com.rio40graus.guiascale.rede.mensagemDeErro
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoStatus
+import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
-import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.Sessao
+import br.com.rio40graus.guiascale.rede.mensagemDeErro
 import br.com.rio40graus.guiascale.ui.tema.CoresExtras
 import br.com.rio40graus.guiascale.ui.tema.FormaBotao
 import br.com.rio40graus.guiascale.ui.tema.FormaCampo
 import br.com.rio40graus.guiascale.ui.tema.FormaCartao
 import br.com.rio40graus.guiascale.ui.tema.TemaGuiaScale
-import kotlin.coroutines.resume
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * A única tela do app, por enquanto.
@@ -219,10 +228,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun carregarMapas(aoTerminar: (List<MapaEmbarque>?, String?) -> Unit) {
+    private fun carregarMapas(data: String, aoTerminar: (List<MapaEmbarque>?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.mapaEmbarque().mapas, null)
+                aoTerminar(Rede.api.mapaEmbarque(data).mapas, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -408,16 +417,18 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Espaço reservado embaixo de cada tela para a barra flutuante não cobrir o
- * último item — o equivalente ao `pb-safe-nav` do web.
+ * Espaço reservado embaixo de cada tela.
+ *
+ * O menu inferior agora entra no fluxo do layout (não sobrepõe o conteúdo),
+ * então só sobra uma folga pequena para o último item não colar na borda.
  */
-internal val ESPACO_DA_BARRA = 84.dp
+internal val ESPACO_DA_BARRA = 12.dp
 
 @Composable
 private fun Tela(
     aoEntrar: (String, String, (String?) -> Unit) -> Unit,
     aoSair: (() -> Unit) -> Unit,
-    aoCarregarMapas: ((List<MapaEmbarque>?, String?) -> Unit) -> Unit,
+    aoCarregarMapas: (String, (List<MapaEmbarque>?, String?) -> Unit) -> Unit,
     aoCheckIn: (Int, Int, Int, Int?, Map<String, Int>?, (String?) -> Unit) -> Unit,
     aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
     aoCarregarFormas: ((List<FormaPagamento>?, String?) -> Unit) -> Unit,
@@ -438,7 +449,7 @@ private fun Tela(
     var entrando by remember { mutableStateOf(false) }
     var erro by remember { mutableStateOf<String?>(null) }
 
-    var aba by remember { mutableStateOf(Aba.EMBARQUE) }
+    var aba by remember { mutableStateOf(Aba.CHECK_IN) }
     // Onde o guia está agora, e por onde já passou. Os dois vão para a tela de
     // embarque: a posição vira a distância até o próximo ponto, o trajeto vira
     // a linha azul no mapa.
@@ -512,47 +523,40 @@ private fun Tela(
                 },
             )
         } else {
-            when (aba) {
-                Aba.EMBARQUE -> TelaEmbarque(
-                    aoCarregar = aoCarregarMapas,
-                    aoTrocarStatus = aoCheckIn,
-                    aoCarregarMotivos = aoCarregarMotivos,
-                    aoCarregarFormas = aoCarregarFormas,
-                    aoCarregarParcelas = aoCarregarParcelas,
-                    aoCarregarIdiomas = aoCarregarIdiomas,
-                    aoSalvarPagamentos = aoSalvarPagamentos,
-                    aoSalvarIdioma = aoSalvarIdioma,
-                    minhaPosicao = minhaPosicao,
-                    trajeto = trajeto,
-                    aoPedirLocalizacao = aoPedirPermissoes,
-                )
+            // Menu fixo no fluxo do layout: o conteúdo rola só na área de cima,
+            // sem passar por baixo do menu.
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when (aba) {
+                        Aba.CHECK_IN -> TelaEmbarque(
+                            aoCarregar = aoCarregarMapas,
+                            aoTrocarStatus = aoCheckIn,
+                            aoCarregarMotivos = aoCarregarMotivos,
+                            aoCarregarFormas = aoCarregarFormas,
+                            aoCarregarParcelas = aoCarregarParcelas,
+                            aoCarregarIdiomas = aoCarregarIdiomas,
+                            aoSalvarPagamentos = aoSalvarPagamentos,
+                            aoSalvarIdioma = aoSalvarIdioma,
+                            minhaPosicao = minhaPosicao,
+                            trajeto = trajeto,
+                            aoPedirLocalizacao = aoPedirPermissoes,
+                        )
 
-                Aba.RASTREIO -> Painel(
-                    rastreando = rastreando,
-                    pendentes = pendentes,
-                    podeEmSegundoPlano = podeEmSegundoPlano,
-                    aoPedirPermissoes = aoPedirPermissoes,
-                    aoAbrirBateria = aoAbrirBateria,
-                    aoAlternarRastreio = {
-                        if (rastreando) aoDesligar() else { aoPedirPermissoes(); aoLigar() }
-                        // O estado real quem grava é o serviço; aqui só se
-                        // adianta o desenho para o toque não parecer perdido.
-                        rastreando = !rastreando
-                    },
-                )
+                        Aba.CONTA -> TelaConta(
+                            login = Sessao.login,
+                            saindo = saindo,
+                            aoPedirSaida = { confirmandoSaida = true },
+                        )
 
-                Aba.CONTA -> TelaConta(
-                    login = Sessao.login,
-                    saindo = saindo,
-                    aoPedirSaida = { confirmandoSaida = true },
+                        else -> { /* abas desabilitadas não selecionam */ }
+                    }
+                }
+
+                NavInferior(
+                    atual = aba,
+                    aoTrocar = { aba = it },
                 )
             }
-
-            NavInferior(
-                atual = aba,
-                aoTrocar = { aba = it },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
         }
     }
 
@@ -576,7 +580,7 @@ private fun Tela(
                             login = ""
                             senha = ""
                             erro = null
-                            aba = Aba.EMBARQUE
+                            aba = Aba.CHECK_IN
                         }
                     },
                 ) {
@@ -596,27 +600,27 @@ private fun Tela(
 }
 
 /**
- * As abas da barra de baixo.
+ * Abas iguais ao BottomNav do web (Painel…Radar), mais Conta do app.
  *
- * São duas, e não as cinco do app web, porque são duas as telas que existem
- * aqui. O web tem Painel, Embarque, Check list, Check-in e Radar; este app foi
- * feito para a única função que o navegador não cumpre — capturar posição com
- * a tela apagada — e repetir os rótulos de lá levaria o guia a tocar em abas
- * vazias.
+ * No web, Geocheck-in fica em Check-in. Aqui também: só Check-in e Conta
+ * abrem tela. Embarque e as demais ficam desabilitadas por enquanto.
  */
-private enum class Aba(val rotulo: Int, val icone: ImageVector) {
-    EMBARQUE(R.string.aba_embarque, Icons.Filled.PinDrop),
-    RASTREIO(R.string.aba_rastreio, Icons.Filled.MyLocation),
-    CONTA(R.string.aba_conta, Icons.Filled.Person),
+private enum class Aba(
+    val rotulo: Int,
+    val icone: ImageVector,
+    val habilitada: Boolean,
+) {
+    PAINEL(R.string.aba_painel, Icons.Filled.Speed, false),
+    EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, false),
+    CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, false),
+    CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
+    RADAR(R.string.aba_radar, Icons.Filled.WbSunny, false),
+    CONTA(R.string.aba_conta, Icons.Filled.Person, true),
 }
 
 /**
- * A barra de baixo, no desenho do BottomNav.tsx do web: uma pílula flutuante
- * azul, solta das bordas, com o item ativo destacado por um realce claro.
- *
- * Ela não some ao rolar, e por isso cada tela reserva espaço embaixo — é o que
- * o web faz com `pb-safe-nav`. `navigationBarsPadding` levanta a barra acima
- * do gesto de navegação do sistema.
+ * Menu inferior igual ao web no celular:
+ * fundo azul médio, item ativo azul mais escuro em pílula compacta.
  */
 @Composable
 private fun NavInferior(
@@ -624,73 +628,83 @@ private fun NavInferior(
     aoTrocar: (Aba) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val corAtiva = MaterialTheme.colorScheme.primary
-    val corInativa = MaterialTheme.colorScheme.onSurfaceVariant
+    val contexto = LocalContext.current
+    // Tom médio como o glass-dark do web sobre fundo claro.
+    val fundoMenu = Color(0xFF355EA3)
+    // Ativo mais escuro (--sidebar-accent).
+    val fundoAtivo = Color(0xFF163E79)
+    val corAtiva = Color.White
+    val corInativa = Color.White.copy(alpha = 0.70f)
+    val corDesabilitada = Color.White.copy(alpha = 0.40f)
 
-    /*
-     * Flutuante e translúcida.
-     *
-     * Solta das bordas e com canto inteiro, como a do BottomNav.tsx do web —
-     * mas sem o azul preenchido: o que dá o efeito de vidro é a cor do cartão
-     * com opacidade, e o conteúdo rola por baixo aparecendo de leve.
-     *
-     * É translucidez, não desfoque. Um `backdrop-filter` de verdade, como o
-     * `.glass` do web faz no navegador, o Compose não entrega sem biblioteca de
-     * terceiros — e uma dependência inteira por um detalhe de barra não se paga.
-     *
-     * Sem sombra, e não por gosto: o Compose desenha a sombra POR BAIXO da
-     * superfície, e uma superfície translúcida a deixa passar — o resultado era
-     * um risco claro atravessando os rótulos. Quem faz a barra parecer solta
-     * aqui é a borda de 1px com a margem em volta.
-     */
     Surface(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 12.dp)
+            .padding(horizontal = 12.dp)
+            .padding(top = 4.dp, bottom = 12.dp)
             .fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.82f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        color = fundoMenu,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp),
+                .height(64.dp)
+                .padding(horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             Aba.entries.forEach { item ->
-                val ativo = item == atual
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { aoTrocar(item) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+                val ativo = item == atual && item.habilitada
+                val cor = when {
+                    !item.habilitada -> corDesabilitada
+                    ativo -> corAtiva
+                    else -> corInativa
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    /*
-                     * O item ativo se distingue só pela cor e pelo peso do
-                     * texto, sem pílula atrás. É o que mantém a barra discreta:
-                     * qualquer forma preenchida volta a chamar mais atenção que
-                     * o conteúdo da tela.
-                     */
-                    Icon(
-                        imageVector = item.icone,
-                        contentDescription = null,
-                        tint = if (ativo) corAtiva else corInativa,
-                        modifier = Modifier.size(22.dp),
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(item.rotulo),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (ativo) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (ativo) corAtiva else corInativa,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (ativo) fundoAtivo else Color.Transparent)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                if (item.habilitada) {
+                                    aoTrocar(item)
+                                } else {
+                                    Toast.makeText(
+                                        contexto,
+                                        contexto.getString(R.string.aba_em_breve),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                            .padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = item.icone,
+                            contentDescription = null,
+                            tint = cor,
+                            modifier = Modifier.size(if (ativo) 22.dp else 20.dp),
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(item.rotulo),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = cor,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
@@ -713,7 +727,7 @@ private fun TelaConta(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .safeDrawingPadding()
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 20.dp)
             .padding(bottom = ESPACO_DA_BARRA),
@@ -968,7 +982,7 @@ private fun Painel(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .safeDrawingPadding()
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 20.dp)
             .padding(bottom = ESPACO_DA_BARRA),

@@ -26,9 +26,29 @@
     <string name="liberar_permissao">Liberar localização</string>
     <string name="liberar_bateria">Liberar economia de bateria</string>
 
-    <string name="aba_rastreio">Rastreio</string>
+    <string name="aba_painel">Painel</string>
     <string name="aba_embarque">Embarque</string>
+    <string name="aba_check_list">Check list</string>
+    <string name="aba_check_in_nav">Check-in</string>
+    <string name="aba_radar">Radar</string>
     <string name="aba_conta">Conta</string>
+    <string name="aba_em_breve">Em breve</string>
+    <string name="aba_rastreio">Rastreio</string>
+    <string name="geocheckin_titulo">Geocheck-in</string>
+    <string name="embarque_subtitulo">%1$s · %2$d de %3$d pontos no mapa</string>
+    <string name="embarque_subtitulo_historico">%1$s · %2$d de %3$d pontos no mapa · modo histórico</string>
+    <string name="embarque_filtrar_data">Filtrar por data</string>
+    <string name="embarque_hoje">Hoje</string>
+    <string name="embarque_atualizar">Atualizar</string>
+    <string name="embarque_legenda_atraso">Atraso:</string>
+    <string name="embarque_atraso_ate_15">até 15 min</string>
+    <string name="embarque_atraso_acima_15">acima de 15 min</string>
+    <string name="embarque_legenda_status">Status:</string>
+    <string name="embarque_status_checkin">Check-in</string>
+    <string name="embarque_status_reservado">Reservado</string>
+    <string name="embarque_status_parcial">Parcial</string>
+    <string name="embarque_status_noshow">No show</string>
+    <string name="embarque_pontos_sem_coord">%1$d ponto(s) sem latitude/longitude no cadastro do sistema.</string>
 
     <string name="embarque_proximo">Próximo embarque</string>
     <string name="embarque_distancia">distância</string>
