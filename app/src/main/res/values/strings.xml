@@ -40,6 +40,8 @@
     <string name="embarque_filtrar_data">Filtrar por data</string>
     <string name="embarque_hoje">Hoje</string>
     <string name="embarque_atualizar">Atualizar</string>
+    <string name="embarque_iniciar">Iniciar embarque</string>
+    <string name="embarque_parar">Parar embarque</string>
     <string name="embarque_legenda_atraso">Atraso:</string>
     <string name="embarque_atraso_ate_15">até 15 min</string>
     <string name="embarque_atraso_acima_15">acima de 15 min</string>

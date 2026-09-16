@@ -60,6 +60,7 @@ import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.ReservaEmbarque
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
+import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.MapaGoogle
 import br.com.rio40graus.guiascale.ui.PinoMapa
@@ -82,11 +83,27 @@ import java.util.Locale
 private val COR_DO_STATUS = mapOf(
     1 to Color(0xFF3B82F6),
     2 to Color(0xFF16A34A),
-    3 to Color(0xFFEA580C),
+    3 to Color(0xFFDA4553), // No show — mesma do web (#da4553)
     8 to Color(0xFFF59E0B),
 )
 
 private val COR_PADRAO = Color(0xFF94A3B8)
+
+/**
+ * Mapa ao qual o rastro do "Iniciar embarque" deve se vincular.
+ *
+ * Prefere o mapa do próximo ponto ainda não resolvido; se todos já foram,
+ * cai no primeiro mapa do dia. Sem mapa não dá para ligar o rastreio com dono.
+ */
+private fun mapaDoEmbarque(mapas: List<MapaEmbarque>?): Int? {
+    val lista = mapas.orEmpty()
+    if (lista.isEmpty()) return null
+    val proximo = lista
+        .flatMap { mapa -> mapa.reservas.map { mapa to it } }
+        .filter { !resolvida(it.second.status?.id) }
+        .minByOrNull { it.second.hora ?: "99:99" }
+    return proximo?.first?.id ?: lista.first().id
+}
 
 private fun corDoStatus(id: Int?) = COR_DO_STATUS[id] ?: COR_PADRAO
 
@@ -155,8 +172,11 @@ fun TelaEmbarque(
     aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     minhaPosicao: Location?,
-    trajeto: List<Pair<Double, Double>>,
+    trajetoLocal: List<Posicao>,
     aoPedirLocalizacao: () -> Unit = {},
+    embarqueAtivo: Boolean = false,
+    aoAlternarEmbarque: (mapaId: Int?) -> Unit = {},
+    aoCarregarTrajeto: (data: String, mapaIds: List<Int>, aoTerminar: (List<Pair<Double, Double>>?, String?) -> Unit) -> Unit = { _, _, done -> done(emptyList(), null) },
 ) {
     val hojeIso = remember { dataIsoDeHoje() }
     var dataSelecionada by remember { mutableStateOf(hojeIso) }
@@ -168,22 +188,51 @@ fun TelaEmbarque(
     var enviando by remember { mutableStateOf<Int?>(null) }
     var recarregar by remember { mutableStateOf(0) }
     var selecionada by remember { mutableStateOf<Int?>(null) }
+    /** Incrementa a cada toque na lista para forçar o mapa a recentralizar. */
+    var focoPedido by remember { mutableStateOf(0) }
     var editando by remember { mutableStateOf<Pair<MapaEmbarque, ReservaEmbarque>?>(null) }
     var apenasAtrasados by remember { mutableStateOf(false) }
+    var trajetoRemoto by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
 
     val ehHoje = dataSelecionada == hojeIso
     val agora = remember(recarregar, dataSelecionada) { System.currentTimeMillis() }
     val dataExibicao = remember(dataSelecionada) { formatarDataBr(dataSelecionada) }
+    val idsMapas = remember(mapas) { mapas.orEmpty().map { it.id } }
+    val mapaParaRastreio = remember(mapas) { mapaDoEmbarque(mapas) }
 
     LaunchedEffect(dataSelecionada, recarregar) {
         carregando = true
         erro = null
         selecionada = null
         apenasAtrasados = false
+        trajetoRemoto = emptyList()
         aoCarregar(dataSelecionada) { resultado, falha ->
             mapas = resultado
             erro = falha
             carregando = false
+        }
+    }
+
+    /**
+     * Atualiza mapas sem tirar a tela (nem fechar o dialog de check-in).
+     * Usado depois de status / pagamento / idioma — igual ao web, que só
+     * invalida o query e mantém a modal aberta.
+     */
+    fun atualizarEmSilencio() {
+        aoCarregar(dataSelecionada) { resultado, falha ->
+            if (resultado != null) mapas = resultado
+            if (falha != null) erro = falha
+        }
+    }
+
+    // Histórico: o rastro já está no servidor, filtrado por mapa.
+    LaunchedEffect(dataSelecionada, idsMapas, ehHoje, recarregar) {
+        if (ehHoje || idsMapas.isEmpty()) {
+            trajetoRemoto = emptyList()
+            return@LaunchedEffect
+        }
+        aoCarregarTrajeto(dataSelecionada, idsMapas) { pontos, _ ->
+            trajetoRemoto = pontos.orEmpty()
         }
     }
 
@@ -222,7 +271,26 @@ fun TelaEmbarque(
     }
     val comCoordenada = pontos.filter { it.second.latitude != null && it.second.longitude != null }
     val posicaoMapa = if (ehHoje) minhaPosicao else null
-    val trajetoMapa = if (ehHoje) trajeto else emptyList()
+    // Cada mapa só vê o próprio rastro — local (hoje) ou remoto (histórico).
+    val trajetoMapa = remember(ehHoje, trajetoLocal, trajetoRemoto, idsMapas) {
+        if (ehHoje) {
+            val ids = idsMapas.toSet()
+            trajetoLocal
+                .filter { it.mapaId != null && it.mapaId in ids }
+                .map { it.latitude to it.longitude }
+        } else {
+            trajetoRemoto
+        }
+    }
+
+    val aoIniciarOuParar: () -> Unit = {
+        if (embarqueAtivo) {
+            aoAlternarEmbarque(null)
+        } else if (mapaParaRastreio != null) {
+            // Sem mapa do dia não inicia: o rastro precisa de dono.
+            aoAlternarEmbarque(mapaParaRastreio)
+        }
+    }
 
     when {
         carregando -> EstadoEmbarque {
@@ -243,9 +311,11 @@ fun TelaEmbarque(
                     noMapa = 0,
                     total = 0,
                     ehHoje = ehHoje,
+                    embarqueAtivo = embarqueAtivo,
                     aoAbrirCalendario = { mostrarCalendario = true },
                     aoIrParaHoje = { dataSelecionada = hojeIso },
                     aoAtualizar = { recarregar++ },
+                    aoAlternarEmbarque = aoIniciarOuParar,
                 )
                 Cartao {
                     Column(
@@ -277,9 +347,11 @@ fun TelaEmbarque(
                     noMapa = 0,
                     total = 0,
                     ehHoje = ehHoje,
+                    embarqueAtivo = embarqueAtivo,
                     aoAbrirCalendario = { mostrarCalendario = true },
                     aoIrParaHoje = { dataSelecionada = hojeIso },
                     aoAtualizar = { recarregar++ },
+                    aoAlternarEmbarque = aoIniciarOuParar,
                 )
                 Cartao {
                     Box(
@@ -316,9 +388,11 @@ fun TelaEmbarque(
                             noMapa = comCoordenada.size,
                             total = pontos.size,
                             ehHoje = ehHoje,
+                            embarqueAtivo = embarqueAtivo,
                             aoAbrirCalendario = { mostrarCalendario = true },
                             aoIrParaHoje = { dataSelecionada = hojeIso },
                             aoAtualizar = { recarregar++ },
+                            aoAlternarEmbarque = aoIniciarOuParar,
                         )
 
                         Legendas()
@@ -354,6 +428,7 @@ fun TelaEmbarque(
                                 trajeto = trajetoMapa,
                                 aoTocarPino = { selecionada = it },
                                 focarEm = selecionada,
+                                focoPedido = focoPedido,
                                 paddingTopo = 8.dp,
                                 paddingBase = 8.dp,
                                 aoPedirLocalizacao = aoPedirLocalizacao,
@@ -395,6 +470,7 @@ fun TelaEmbarque(
                             aoTocarPonto = { _, reserva ->
                                 if (reserva.latitude != null && reserva.longitude != null) {
                                     selecionada = reserva.id
+                                    focoPedido++
                                 }
                             },
                             aoEditar = { mapa, reserva ->
@@ -436,7 +512,7 @@ fun TelaEmbarque(
                                 },
                             ),
                             aoFechar = { if (enviando != atual.second.id) editando = null },
-                            aoRecarregar = { recarregar++ },
+                            aoRecarregar = { atualizarEmSilencio() },
                         )
                     }
                 }
@@ -473,74 +549,119 @@ private fun Cabecalho(
     noMapa: Int,
     total: Int,
     ehHoje: Boolean,
+    embarqueAtivo: Boolean,
     aoAbrirCalendario: () -> Unit,
     aoIrParaHoje: () -> Unit,
     aoAtualizar: () -> Unit,
+    aoAlternarEmbarque: () -> Unit,
 ) {
-    // Igual ao web no celular: título à esquerda; data e Atualizar empilhados à direita.
-    Row(
+    // Título à esquerda; data à direita. Na linha de baixo: Iniciar à esquerda,
+    // Atualizar à direita — mesmo eixo visual do Atualizar, alinhados no começo/fim.
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.geocheckin_titulo),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = stringResource(
-                    if (ehHoje) R.string.embarque_subtitulo
-                    else R.string.embarque_subtitulo_historico,
-                    dataExibicao,
-                    noMapa,
-                    total,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(FormaBotaoPequeno)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = FormaBotaoPequeno,
-                    )
-                    .clickable(onClick = aoAbrirCalendario)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = dataExibicao,
-                    style = MaterialTheme.typography.labelLarge,
+                    text = stringResource(R.string.geocheckin_titulo),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                 )
-                Icon(
-                    imageVector = Icons.Filled.DateRange,
-                    contentDescription = stringResource(R.string.embarque_filtrar_data),
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface,
+                Text(
+                    text = stringResource(
+                        if (ehHoje) R.string.embarque_subtitulo
+                        else R.string.embarque_subtitulo_historico,
+                        dataExibicao,
+                        noMapa,
+                        total,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            if (!ehHoje) {
-                Text(
-                    text = stringResource(R.string.embarque_hoje),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
                     modifier = Modifier
                         .clip(FormaBotaoPequeno)
-                        .clickable(onClick = aoIrParaHoje)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = FormaBotaoPequeno,
+                        )
+                        .clickable(onClick = aoAbrirCalendario)
                         .padding(horizontal = 10.dp, vertical = 8.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = dataExibicao,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.DateRange,
+                        contentDescription = stringResource(R.string.embarque_filtrar_data),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                if (!ehHoje) {
+                    Text(
+                        text = stringResource(R.string.embarque_hoje),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(FormaBotaoPequeno)
+                            .clickable(onClick = aoIrParaHoje)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (ehHoje) Arrangement.SpaceBetween else Arrangement.End,
+        ) {
+            if (ehHoje) {
+                val fundoIniciar = if (embarqueAtivo) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                }
+                val textoIniciar = if (embarqueAtivo) {
+                    MaterialTheme.colorScheme.onError
+                } else {
+                    MaterialTheme.colorScheme.onPrimary
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(FormaBotaoPequeno)
+                        .background(fundoIniciar)
+                        .clickable(onClick = aoAlternarEmbarque)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (embarqueAtivo) R.string.embarque_parar
+                            else R.string.embarque_iniciar,
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = textoIniciar,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
 
             Row(
@@ -635,7 +756,7 @@ private fun Legendas() {
             ItemStatusLegenda(stringResource(R.string.embarque_status_checkin), Color(0xFF16A34A))
             ItemStatusLegenda(stringResource(R.string.embarque_status_reservado), Color(0xFF3B82F6))
             ItemStatusLegenda(stringResource(R.string.embarque_status_parcial), Color(0xFFF59E0B))
-            ItemStatusLegenda(stringResource(R.string.embarque_status_noshow), Color(0xFFEA580C))
+            ItemStatusLegenda(stringResource(R.string.embarque_status_noshow), Color(0xFFDA4553))
         }
     }
 }

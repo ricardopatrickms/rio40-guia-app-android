@@ -51,6 +51,23 @@ data class LotePosicoes(val posicoes: List<PosicaoEnviada>)
 
 data class RespostaLote(val ok: Boolean, val gravadas: Int)
 
+/** Trajeto já no servidor — um dia, opcionalmente de um mapa só. */
+data class RespostaPosicoesDia(
+    val data: String?,
+    val total: Int? = 0,
+    val posicoes: List<PosicaoRemota> = emptyList(),
+)
+
+data class PosicaoRemota(
+    val latitude: Double,
+    val longitude: Double,
+    val precisao: Float? = null,
+    val velocidade: Float? = null,
+    val capturado_em: String? = null,
+    val recebido_em: String? = null,
+    val mapa_id: Int? = null,
+)
+
 
 /**
  * O mapa de embarque do dia, como a guias-api devolve em `guia/mapa-embarque`.
@@ -197,6 +214,13 @@ interface ApiGuias {
 
     @POST("guia/posicoes")
     suspend fun enviarPosicoes(@Body lote: LotePosicoes): RespostaLote
+
+    /** Trajeto gravado no servidor; com mapa_id vem só o daquele embarque. */
+    @GET("guia/posicoes")
+    suspend fun listarPosicoes(
+        @Query("data") data: String? = null,
+        @Query("mapa_id") mapaId: Int? = null,
+    ): RespostaPosicoesDia
 
     /*
      * Invalida o token no servidor. Devolve Response, e não o corpo, porque

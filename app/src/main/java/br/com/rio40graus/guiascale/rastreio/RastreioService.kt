@@ -112,9 +112,9 @@ class RastreioService : LifecycleService() {
         )
 
         /*
-         * O mapa vem no Intent quando quem liga o rastreio é o check-in. Ligado
-         * pelo botão da tela de Rastreio, vem nulo — e nulo é um estado
-         * legítimo: o guia pode começar a gravar antes do primeiro embarque.
+         * O mapa vem no Intent no "Iniciar embarque" e no primeiro check-in.
+         * Sem EXTRA_MAPA e com o serviço já ativo (recriação START_STICKY),
+         * mantém o mapa que estava gravado no EstadoRastreio.
          */
         if (intent?.hasExtra(EXTRA_MAPA) == true) {
             val mapa = intent.getIntExtra(EXTRA_MAPA, -1).takeIf { it > 0 }
@@ -221,11 +221,11 @@ class RastreioService : LifecycleService() {
         private const val CANAL = "rastreio"
         private const val ID_NOTIFICACAO = 1
 
-        /** Uma leitura a cada 15s: bom traçado de rota sem fritar a bateria. */
-        private const val INTERVALO_MS = 15_000L
+        /** Uma leitura a cada 8s: traçado denso o bastante para encaixar na rua. */
+        private const val INTERVALO_MS = 8_000L
 
         /** Abaixo disso é a van parada, ou o erro do próprio GPS. */
-        private const val DESLOCAMENTO_MINIMO_M = 10f
+        private const val DESLOCAMENTO_MINIMO_M = 5f
 
         /** ~5 minutos de captura entre um empurrão e outro na fila. */
         private const val PONTOS_ENTRE_ENVIOS = 20

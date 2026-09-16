@@ -130,7 +130,12 @@ fun DialogCheckInEmbarque(
     val entradas = remember {
         mutableStateListOf<EntradaPagamento>()
     }
-    LaunchedEffect(reserva.id, reserva.pagamentos) {
+    // Só remonta as formas se o conteúdo gravado mudou — um refresh de status
+    // não pode apagar o que o guia ainda está digitando no pagamento.
+    val assinaturaPagamentos = reserva.pagamentos.joinToString("|") {
+        "${it.pag_id}:${it.forma_id}:${it.valor}:${it.parcela_id}:${it.tipo}"
+    }
+    LaunchedEffect(reserva.id, assinaturaPagamentos) {
         entradas.clear()
         reserva.pagamentos.forEach { p ->
             entradas.add(
@@ -152,6 +157,12 @@ fun DialogCheckInEmbarque(
         )
     }
 
+    // Status local: o botão muda na hora; o refresh silencioso confirma depois.
+    var statusLocal by remember(reserva.id) { mutableStateOf(reserva.status?.id) }
+    LaunchedEffect(reserva.status?.id) {
+        statusLocal = reserva.status?.id
+    }
+
     val totalPax = reserva.total ?: (reserva.adt + reserva.chd + reserva.inf + reserva.jovem + reserva.idoso)
     val paxTexto = listOf(
         reserva.adt to "ADT",
@@ -164,10 +175,11 @@ fun DialogCheckInEmbarque(
     val opcoesStatus = listOf(
         OpcaoStatus(STATUS_CHECK_IN, "Check-in", true, Color(0xFF16A34A)),
         OpcaoStatus(STATUS_RESERVADO, "Reservado", false, Color(0xFF3B82F6)),
-        OpcaoStatus(STATUS_NO_SHOW, "No show", true, Color(0xFFEA580C)),
+        // Mesma cor do web / painel rio40graus (#da4553).
+        OpcaoStatus(STATUS_NO_SHOW, "No show", true, Color(0xFFDA4553)),
         OpcaoStatus(STATUS_PARCIAL, "Parcial", true, Color(0xFF3B82F6)),
     )
-    val statusAtual = reserva.status?.id
+    val statusAtual = statusLocal
     val opcaoAtual = opcoesStatus.firstOrNull { it.id == statusAtual }
         ?: OpcaoStatus(statusAtual ?: 0, reserva.status?.nome ?: "Status", false, Color(0xFF94A3B8))
 
@@ -215,6 +227,7 @@ fun DialogCheckInEmbarque(
         acoes.trocarStatus(statusId, motivo, parcial) { falha ->
             salvandoStatus = false
             if (falha == null) {
+                statusLocal = statusId
                 dialogoMotivo = false
                 dialogoParcial = false
                 aoRecarregar()
@@ -331,6 +344,7 @@ fun DialogCheckInEmbarque(
                         atual = opcaoAtual,
                         opcoes = opcoesStatus.filter { it.permitido || it.id == statusAtual },
                         bloqueado = bloqueado || salvandoStatus || enviando,
+                        carregando = salvandoStatus || enviando,
                         aoEscolher = ::escolherStatus,
                     )
                 }
@@ -463,12 +477,6 @@ fun DialogCheckInEmbarque(
 
                 erro?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                if (salvandoStatus || enviando) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        strokeWidth = 2.dp,
-                    )
                 }
             }
         },
@@ -609,6 +617,7 @@ private fun SeletorStatus(
     atual: OpcaoStatus,
     opcoes: List<OpcaoStatus>,
     bloqueado: Boolean,
+    carregando: Boolean = false,
     aoEscolher: (Int) -> Unit,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -618,9 +627,10 @@ private fun SeletorStatus(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(atual.corAtiva)
-                .clickable(enabled = !bloqueado) { aberto = true }
+                .clickable(enabled = !bloqueado && !carregando) { aberto = true }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = atual.rotulo,
@@ -628,7 +638,15 @@ private fun SeletorStatus(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White)
+            if (carregando) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White,
+                )
+            } else {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White)
+            }
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             opcoes.forEach { op ->

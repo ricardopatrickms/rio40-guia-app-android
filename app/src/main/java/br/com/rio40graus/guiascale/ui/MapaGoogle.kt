@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import br.com.rio40graus.guiascale.R
+import br.com.rio40graus.guiascale.mapa.TrajetoNasRuas
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -101,6 +102,8 @@ fun MapaGoogle(
     paddingBase: Dp = 300.dp,
     /** Reserva selecionada na lista: o mapa recentraliza nela, como no web. */
     focarEm: Int? = null,
+    /** Muda a cada toque na lista para forçar o recenter mesmo no mesmo ponto. */
+    focoPedido: Int = 0,
     /** Sem permissão de GPS: o toque no botão pede a liberação. */
     aoPedirLocalizacao: () -> Unit = {},
 ) {
@@ -140,6 +143,19 @@ fun MapaGoogle(
 
     val paddingTopoPx = with(density) { paddingTopo.roundToPx() }
     val paddingBasePx = with(density) { paddingBase.roundToPx() }
+
+    // Trajeto bruto → geometria pela rua (OSRM). Enquanto calcula, mostra o bruto.
+    var trajetoNasRuas by remember { mutableStateOf<List<LatLng>>(emptyList()) }
+    LaunchedEffect(trajeto) {
+        if (trajeto.size < 2) {
+            trajetoNasRuas = emptyList()
+            return@LaunchedEffect
+        }
+        trajetoNasRuas = trajeto.map { LatLng(it.first, it.second) }
+        delay(350)
+        val alinhada = TrajetoNasRuas.alinhar(trajeto)
+        trajetoNasRuas = alinhada.map { LatLng(it.first, it.second) }
+    }
 
     // Só os pontos de embarque entram na chave: GPS do guia muda a cada poucos
     // segundos e cancelaria o enquadramento no meio (câmera presa no Rio default).
@@ -190,9 +206,9 @@ fun MapaGoogle(
                 }
             }
 
-            if (trajeto.size > 1) {
+            if (trajetoNasRuas.size > 1) {
                 Polyline(
-                    points = trajeto.map { LatLng(it.first, it.second) },
+                    points = trajetoNasRuas,
                     color = androidx.compose.ui.graphics.Color(0xD92563EB),
                     width = 12f,
                 )
@@ -213,6 +229,18 @@ fun MapaGoogle(
                         zIndex = 1f,
                         onClick = {
                             aoTocarPino(p.id)
+                            // Sempre vai até o ponto — não depende do LaunchedEffect
+                            // (que não reage se o mesmo id já estava selecionado).
+                            escopo.launch {
+                                runCatching {
+                                    camera.animate(
+                                        CameraUpdateFactory.newLatLngZoom(
+                                            LatLng(p.latitude, p.longitude),
+                                            16f,
+                                        ),
+                                    )
+                                }
+                            }
                             true
                         },
                     )
@@ -288,10 +316,11 @@ fun MapaGoogle(
         }
     }
 
-    // Toque na lista (ou no balao): vai até o ponto, como o "Ver no mapa" do web.
-    LaunchedEffect(focarEm, mapaPronto) {
+    // Toque na lista: vai até o ponto, como o "Ver no mapa" do web.
+    LaunchedEffect(focarEm, focoPedido, mapaPronto) {
         if (!mapaPronto) return@LaunchedEffect
         val id = focarEm ?: return@LaunchedEffect
+        if (focoPedido <= 0) return@LaunchedEffect
         val pino = pinos.firstOrNull { it.id == id } ?: return@LaunchedEffect
         runCatching {
             camera.animate(

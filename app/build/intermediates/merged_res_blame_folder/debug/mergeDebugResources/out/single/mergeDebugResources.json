@@ -1,26 +1,26 @@
 [
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-6:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/font_inter.ttf.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/font/inter.ttf"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/font_dm_sans.ttf.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-6:/font/dm_sans.ttf"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/xml_rede_debug.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-debug-65:/xml/rede_debug.xml"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_launcher_foreground.xml"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/font_inter.ttf.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-6:/font/inter.ttf"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/font_dm_sans.ttf.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/font/dm_sans.ttf"
+        "merged": "br.com.rio40graus.guiascale.app-debug-4:/xml_rede_debug.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-debug-5:/xml/rede_debug.xml"
     }
 ]

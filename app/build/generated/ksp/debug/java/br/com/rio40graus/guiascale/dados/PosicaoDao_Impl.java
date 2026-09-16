@@ -319,6 +319,93 @@ public final class PosicaoDao_Impl implements PosicaoDao {
   }
 
   @Override
+  public Object desdeDosMapas(final long desde, final List<Integer> mapaIds,
+      final Continuation<? super List<Posicao>> $completion) {
+    final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
+    _stringBuilder.append("\n");
+    _stringBuilder.append("        SELECT * FROM posicoes");
+    _stringBuilder.append("\n");
+    _stringBuilder.append("        WHERE capturadoEm >= ");
+    _stringBuilder.append("?");
+    _stringBuilder.append(" AND mapaId IN (");
+    final int _inputSize = mapaIds.size();
+    StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
+    _stringBuilder.append(")");
+    _stringBuilder.append("\n");
+    _stringBuilder.append("        ORDER BY capturadoEm ASC");
+    _stringBuilder.append("\n");
+    _stringBuilder.append("        ");
+    final String _sql = _stringBuilder.toString();
+    final int _argCount = 1 + _inputSize;
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, _argCount);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, desde);
+    _argIndex = 2;
+    for (int _item : mapaIds) {
+      _statement.bindLong(_argIndex, _item);
+      _argIndex++;
+    }
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<Posicao>>() {
+      @Override
+      @NonNull
+      public List<Posicao> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfPrecisao = CursorUtil.getColumnIndexOrThrow(_cursor, "precisao");
+          final int _cursorIndexOfVelocidade = CursorUtil.getColumnIndexOrThrow(_cursor, "velocidade");
+          final int _cursorIndexOfCapturadoEm = CursorUtil.getColumnIndexOrThrow(_cursor, "capturadoEm");
+          final int _cursorIndexOfMapaId = CursorUtil.getColumnIndexOrThrow(_cursor, "mapaId");
+          final int _cursorIndexOfEnviada = CursorUtil.getColumnIndexOrThrow(_cursor, "enviada");
+          final List<Posicao> _result = new ArrayList<Posicao>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final Posicao _item_1;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final double _tmpLatitude;
+            _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            final double _tmpLongitude;
+            _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            final Float _tmpPrecisao;
+            if (_cursor.isNull(_cursorIndexOfPrecisao)) {
+              _tmpPrecisao = null;
+            } else {
+              _tmpPrecisao = _cursor.getFloat(_cursorIndexOfPrecisao);
+            }
+            final Float _tmpVelocidade;
+            if (_cursor.isNull(_cursorIndexOfVelocidade)) {
+              _tmpVelocidade = null;
+            } else {
+              _tmpVelocidade = _cursor.getFloat(_cursorIndexOfVelocidade);
+            }
+            final long _tmpCapturadoEm;
+            _tmpCapturadoEm = _cursor.getLong(_cursorIndexOfCapturadoEm);
+            final Integer _tmpMapaId;
+            if (_cursor.isNull(_cursorIndexOfMapaId)) {
+              _tmpMapaId = null;
+            } else {
+              _tmpMapaId = _cursor.getInt(_cursorIndexOfMapaId);
+            }
+            final boolean _tmpEnviada;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfEnviada);
+            _tmpEnviada = _tmp != 0;
+            _item_1 = new Posicao(_tmpId,_tmpLatitude,_tmpLongitude,_tmpPrecisao,_tmpVelocidade,_tmpCapturadoEm,_tmpMapaId,_tmpEnviada);
+            _result.add(_item_1);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Object marcarEnviadas(final List<Long> ids, final Continuation<? super Unit> $completion) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override

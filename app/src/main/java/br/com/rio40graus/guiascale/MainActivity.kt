@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.rio40graus.guiascale.dados.BancoLocal
+import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.rastreio.EstadoRastreio
 import br.com.rio40graus.guiascale.rastreio.RastreioService
 import br.com.rio40graus.guiascale.rede.FormaPagamento
@@ -172,6 +173,7 @@ class MainActivity : ComponentActivity() {
                         aoEntrar = ::entrar,
                         aoSair = ::sair,
                         aoCarregarMapas = ::carregarMapas,
+                        aoCarregarTrajeto = ::carregarTrajeto,
                         aoCheckIn = ::checkIn,
                         aoCarregarMotivos = ::carregarMotivos,
                         aoCarregarFormas = ::carregarFormas,
@@ -180,7 +182,7 @@ class MainActivity : ComponentActivity() {
                         aoSalvarPagamentos = ::salvarPagamentos,
                         aoSalvarIdioma = ::salvarIdioma,
                         aoPedirPermissoes = ::pedirPermissoes,
-                        aoLigar = { RastreioService.iniciar(this) },
+                        aoLigar = { mapaId -> RastreioService.iniciar(this, mapaId) },
                         aoDesligar = { RastreioService.parar(this) },
                         aoAbrirBateria = ::abrirIsencaoDeBateria,
                     )
@@ -239,12 +241,37 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Trajeto já no servidor, um por mapa — cada embarque tem o seu rastro.
+     */
+    private fun carregarTrajeto(
+        data: String,
+        mapaIds: List<Int>,
+        aoTerminar: (List<Pair<Double, Double>>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                if (mapaIds.isEmpty()) {
+                    aoTerminar(emptyList(), null)
+                    return@launch
+                }
+                val pontos = mapaIds.flatMap { mapaId ->
+                    Rede.api.listarPosicoes(data = data, mapaId = mapaId)
+                        .posicoes
+                        .map { it.latitude to it.longitude }
+                }
+                aoTerminar(pontos, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    /**
      * Troca de status no embarque (check-in, no-show ou parcial).
      *
-     * O primeiro CHECK-IN do dia liga o rastreio. É o momento certo: antes
-     * dele o guia está a caminho por conta própria, e gravar esse trecho só
-     * gastaria bateria. Do primeiro embarque em diante, cada ponto sai
-     * carimbado com o mapa.
+     * O primeiro CHECK-IN do dia liga o rastreio (se ainda não estiver ligado
+     * pelo "Iniciar embarque"), carimbando o mapa da reserva. Do primeiro
+     * embarque em diante, cada ponto sai vinculado a esse mapa.
      */
     private fun checkIn(
         reservaId: Int,
@@ -429,6 +456,7 @@ private fun Tela(
     aoEntrar: (String, String, (String?) -> Unit) -> Unit,
     aoSair: (() -> Unit) -> Unit,
     aoCarregarMapas: (String, (List<MapaEmbarque>?, String?) -> Unit) -> Unit,
+    aoCarregarTrajeto: (String, List<Int>, (List<Pair<Double, Double>>?, String?) -> Unit) -> Unit,
     aoCheckIn: (Int, Int, Int, Int?, Map<String, Int>?, (String?) -> Unit) -> Unit,
     aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
     aoCarregarFormas: ((List<FormaPagamento>?, String?) -> Unit) -> Unit,
@@ -437,7 +465,7 @@ private fun Tela(
     aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
-    aoLigar: () -> Unit,
+    aoLigar: (mapaId: Int?) -> Unit,
     aoDesligar: () -> Unit,
     aoAbrirBateria: () -> Unit,
 ) {
@@ -452,9 +480,9 @@ private fun Tela(
     var aba by remember { mutableStateOf(Aba.CHECK_IN) }
     // Onde o guia está agora, e por onde já passou. Os dois vão para a tela de
     // embarque: a posição vira a distância até o próximo ponto, o trajeto vira
-    // a linha azul no mapa.
+    // a linha azul no mapa (filtrada por mapa na TelaEmbarque).
     var minhaPosicao by remember { mutableStateOf<android.location.Location?>(null) }
-    var trajeto by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+    var trajeto by remember { mutableStateOf<List<Posicao>>(emptyList()) }
     var confirmandoSaida by remember { mutableStateOf(false) }
     var saindo by remember { mutableStateOf(false) }
 
@@ -480,10 +508,11 @@ private fun Tela(
              * o guia mais quer ver por onde andou.
              */
             trajeto = dao.desde(inicioDoDia())
-                .map { it.latitude to it.longitude }
 
-            minhaPosicao = ultimaPosicao(contexto)
-            delay(3_000)
+            // Posição do pino/distância: ao vivo mesmo com embarque parado.
+            // Só o RastreioService grava no banco — aqui é só leitura.
+            minhaPosicao = posicaoParaExibicao(contexto, rastreando)
+            delay(if (rastreando) 3_000 else 5_000)
         }
     }
 
@@ -538,8 +567,20 @@ private fun Tela(
                             aoSalvarPagamentos = aoSalvarPagamentos,
                             aoSalvarIdioma = aoSalvarIdioma,
                             minhaPosicao = minhaPosicao,
-                            trajeto = trajeto,
+                            trajetoLocal = trajeto,
                             aoPedirLocalizacao = aoPedirPermissoes,
+                            embarqueAtivo = rastreando,
+                            aoAlternarEmbarque = { mapaId ->
+                                if (rastreando) {
+                                    aoDesligar()
+                                    rastreando = false
+                                } else {
+                                    aoPedirPermissoes()
+                                    aoLigar(mapaId)
+                                    rastreando = true
+                                }
+                            },
+                            aoCarregarTrajeto = aoCarregarTrajeto,
                         )
 
                         Aba.CONTA -> TelaConta(
@@ -1165,21 +1206,66 @@ private fun inicioDoDia(): Long = java.util.Calendar.getInstance().apply {
 }.timeInMillis
 
 /**
- * A última posição conhecida do aparelho.
+ * Posição do guia só para a tela (pino e distância até o próximo ponto).
  *
- * Vem do Fused, que é o mesmo provedor que o RastreioService alimenta — com a
- * captura ligada, esta leitura é recente sem custo nenhum de bateria. Devolve
- * nulo sem permissão, e a tela simplesmente não mostra a distância.
+ * Com o embarque ligado o RastreioService já alimenta o Fused — `lastLocation`
+ * basta e não gasta GPS de novo. Com o embarque parado, força
+ * `getCurrentLocation` para acompanhar a simulação do emulador / o GPS real
+ * sem gravar nada no banco.
  */
-private suspend fun ultimaPosicao(contexto: android.content.Context): android.location.Location? =
+private suspend fun posicaoParaExibicao(
+    contexto: Context,
+    rastreando: Boolean,
+): android.location.Location? {
+    if (!temPermissaoDeLocalizacao(contexto)) return null
+    return if (rastreando) {
+        ultimaPosicao(contexto) ?: posicaoAtual(contexto)
+    } else {
+        posicaoAtual(contexto) ?: ultimaPosicao(contexto)
+    }
+}
+
+private fun temPermissaoDeLocalizacao(contexto: Context): Boolean {
+    val fine = ContextCompat.checkSelfPermission(
+        contexto,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    val coarse = ContextCompat.checkSelfPermission(
+        contexto,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    return fine || coarse
+}
+
+/** Cache do Fused — barato; pode ficar velho se ninguém pediu update. */
+private suspend fun ultimaPosicao(contexto: Context): android.location.Location? =
     try {
-        kotlinx.coroutines.suspendCancellableCoroutine { continuacao ->
+        suspendCancellableCoroutine { continuacao ->
             com.google.android.gms.location.LocationServices
                 .getFusedLocationProviderClient(contexto)
                 .lastLocation
                 .addOnSuccessListener { continuacao.resume(it) }
                 .addOnFailureListener { continuacao.resume(null) }
         }
-    } catch (erro: SecurityException) {
+    } catch (_: SecurityException) {
+        null
+    }
+
+/** Pedido ativo: atualiza mesmo com o rastreio desligado. */
+private suspend fun posicaoAtual(contexto: Context): android.location.Location? =
+    try {
+        suspendCancellableCoroutine { continuacao ->
+            val cancelamento = com.google.android.gms.tasks.CancellationTokenSource()
+            continuacao.invokeOnCancellation { cancelamento.cancel() }
+            com.google.android.gms.location.LocationServices
+                .getFusedLocationProviderClient(contexto)
+                .getCurrentLocation(
+                    com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                    cancelamento.token,
+                )
+                .addOnSuccessListener { continuacao.resume(it) }
+                .addOnFailureListener { continuacao.resume(null) }
+        }
+    } catch (_: SecurityException) {
         null
     }

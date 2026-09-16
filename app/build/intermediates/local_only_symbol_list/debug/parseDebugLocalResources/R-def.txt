@@ -76,10 +76,12 @@ string embarque_filtrar_atrasados
 string embarque_filtrar_data
 string embarque_hoje
 string embarque_horario
+string embarque_iniciar
 string embarque_legenda_atraso
 string embarque_legenda_status
 string embarque_no_horario
 string embarque_no_mapa
+string embarque_parar
 string embarque_pontos_sem_coord
 string embarque_pontos_titulo
 string embarque_proximo

@@ -73,6 +73,19 @@ interface PosicaoDao {
     @Query("SELECT * FROM posicoes WHERE capturadoEm >= :desde ORDER BY capturadoEm ASC")
     suspend fun desde(desde: Long): List<Posicao>
 
+    /**
+     * Trajeto só dos mapas informados — cada mapa de embarque tem o seu rastro.
+     * Pontos sem mapaId ficam de fora de propósito.
+     */
+    @Query(
+        """
+        SELECT * FROM posicoes
+        WHERE capturadoEm >= :desde AND mapaId IN (:mapaIds)
+        ORDER BY capturadoEm ASC
+        """,
+    )
+    suspend fun desdeDosMapas(desde: Long, mapaIds: List<Int>): List<Posicao>
+
     /** Faxina do que já subiu e não serve mais para exibir. */
     @Query("DELETE FROM posicoes WHERE enviada = 1 AND capturadoEm < :antesDe")
     suspend fun limparEnviadasAntesDe(antesDe: Long)

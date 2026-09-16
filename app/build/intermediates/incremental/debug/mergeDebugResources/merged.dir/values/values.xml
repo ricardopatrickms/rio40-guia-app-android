@@ -214,10 +214,12 @@
     <string name="embarque_filtrar_data">Filtrar por data</string>
     <string name="embarque_hoje">Hoje</string>
     <string name="embarque_horario">Horário: %1$s</string>
+    <string name="embarque_iniciar">Iniciar embarque</string>
     <string name="embarque_legenda_atraso">Atraso:</string>
     <string name="embarque_legenda_status">Status:</string>
     <string name="embarque_no_horario">no horário</string>
     <string name="embarque_no_mapa">%1$d de %2$d pontos no mapa</string>
+    <string name="embarque_parar">Parar embarque</string>
     <string name="embarque_pontos_sem_coord">%1$d ponto(s) sem latitude/longitude no cadastro do sistema.</string>
     <string name="embarque_pontos_titulo">Pontos de embarque</string>
     <string name="embarque_proximo">Próximo embarque</string>
@@ -403,14 +405,23 @@
         <attr format="reference" name="fontProviderCerts"/>
         
         <attr name="fontProviderFetchStrategy">
-            
+            <!-- The blocking font fetch works as follows.
+              First, check the local cache, then if the requested font is not cached, request the
+              font from the provider and wait until it is finished.  You can change the length of
+              the timeout by modifying fontProviderFetchTimeout.  If the timeout happens, the
+              default typeface will be used instead. -->
             <enum name="blocking" value="0"/>
-            
+            <!-- The async font fetch works as follows.
+              First, check the local cache, then if the requested font is not cached, trigger a
+              request the font and continue with layout inflation. Once the font fetch succeeds, the
+              target text view will be refreshed with the downloaded font data. The
+              fontProviderFetchTimeout will be ignored if async loading is specified. -->
             <enum name="async" value="1"/>
         </attr>
         
         <attr format="integer" name="fontProviderFetchTimeout">
-            
+            <!-- A special value for the timeout. In this case, the blocking font fetching will not
+              timeout and wait until a reply is received from the font provider. -->
             <enum name="forever" value="-1"/>
         </attr>
         
