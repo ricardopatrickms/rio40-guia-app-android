@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-2:/values-v23/values-v23.xml",
+            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-62:/values-v23/values-v23.xml",
             "map": [
                 {
-                    "source": "/tmp/cursor-sandbox-cache/0f6eaf438488bdd7659f7a448e2e6d8a/gradle/caches/8.11.1/transforms/3359615bb4daf94405e771cc03fc29fb/transformed/work-runtime-2.10.0/res/values-v23/values-v23.xml",
+                    "source": "/home/construtor/.gradle/caches/8.11.1/transforms/3359615bb4daf94405e771cc03fc29fb/transformed/work-runtime-2.10.0/res/values-v23/values-v23.xml",
                     "from": {
                         "startLines": "2,3",
                         "startColumns": "4,4",

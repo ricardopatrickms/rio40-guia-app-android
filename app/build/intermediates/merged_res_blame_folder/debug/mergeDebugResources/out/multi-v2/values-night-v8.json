@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-2:/values-night-v8/values-night-v8.xml",
+            "outputFile": "br.com.rio40graus.guiascale.app-mergeDebugResources-62:/values-night-v8/values-night-v8.xml",
             "map": [
                 {
-                    "source": "/home/ricardo/Projetos/rio40/guia/rio40-guia-app-android/app/src/main/res/values-night/colors.xml",
+                    "source": "/projeto/app/src/main/res/values-night/colors.xml",
                     "from": {
                         "startLines": "3",
                         "startColumns": "4",
@@ -21,7 +21,7 @@
                     }
                 },
                 {
-                    "source": "/home/ricardo/Projetos/rio40/guia/rio40-guia-app-android/app/src/main/res/values-night/themes.xml",
+                    "source": "/projeto/app/src/main/res/values-night/themes.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

@@ -101,9 +101,11 @@ import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
+import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
+import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoStatus
 import br.com.rio40graus.guiascale.rede.Rede
@@ -181,6 +183,8 @@ class MainActivity : ComponentActivity() {
                         aoCarregarIdiomas = ::carregarIdiomas,
                         aoSalvarPagamentos = ::salvarPagamentos,
                         aoSalvarIdioma = ::salvarIdioma,
+                        aoCarregarOcorrencias = ::carregarOcorrencias,
+                        aoCriarOcorrencia = ::criarOcorrencia,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { mapaId -> RastreioService.iniciar(this, mapaId) },
                         aoDesligar = { RastreioService.parar(this) },
@@ -389,6 +393,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun carregarOcorrencias(
+        mapaId: Int,
+        aoTerminar: (List<OcorrenciaMapa>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.listarOcorrencias(mapaId).ocorrencias, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun criarOcorrencia(
+        mapaId: Int,
+        relato: String,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.criarOcorrencia(mapaId, PedidoOcorrencia(relato))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun pedirPermissoes() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pedirNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -464,6 +500,8 @@ private fun Tela(
     aoCarregarIdiomas: ((List<IdiomaOpcao>?, String?) -> Unit) -> Unit,
     aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
+    aoCarregarOcorrencias: (Int, (List<OcorrenciaMapa>?, String?) -> Unit) -> Unit,
+    aoCriarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: (mapaId: Int?) -> Unit,
     aoDesligar: () -> Unit,
@@ -557,6 +595,19 @@ private fun Tela(
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (aba) {
+                        Aba.EMBARQUE -> TelaMapaEmbarque(
+                            aoCarregar = aoCarregarMapas,
+                            aoTrocarStatus = aoCheckIn,
+                            aoCarregarMotivos = aoCarregarMotivos,
+                            aoCarregarFormas = aoCarregarFormas,
+                            aoCarregarParcelas = aoCarregarParcelas,
+                            aoCarregarIdiomas = aoCarregarIdiomas,
+                            aoSalvarPagamentos = aoSalvarPagamentos,
+                            aoSalvarIdioma = aoSalvarIdioma,
+                            aoCarregarOcorrencias = aoCarregarOcorrencias,
+                            aoCriarOcorrencia = aoCriarOcorrencia,
+                        )
+
                         Aba.CHECK_IN -> TelaEmbarque(
                             aoCarregar = aoCarregarMapas,
                             aoTrocarStatus = aoCheckIn,
@@ -643,8 +694,8 @@ private fun Tela(
 /**
  * Abas iguais ao BottomNav do web (Painel…Radar), mais Conta do app.
  *
- * No web, Geocheck-in fica em Check-in. Aqui também: só Check-in e Conta
- * abrem tela. Embarque e as demais ficam desabilitadas por enquanto.
+ * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
+ * Painel, Check list e Radar ficam desabilitados por enquanto.
  */
 private enum class Aba(
     val rotulo: Int,
@@ -652,7 +703,7 @@ private enum class Aba(
     val habilitada: Boolean,
 ) {
     PAINEL(R.string.aba_painel, Icons.Filled.Speed, false),
-    EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, false),
+    EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, true),
     CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, false),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
     RADAR(R.string.aba_radar, Icons.Filled.WbSunny, false),
