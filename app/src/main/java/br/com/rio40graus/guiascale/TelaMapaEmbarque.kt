@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,23 +14,38 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -38,28 +55,41 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.net.Uri
 import br.com.rio40graus.guiascale.rede.FormaPagamento
-import br.com.rio40graus.guiascale.rede.FornecedorMapa
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
+import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
+import br.com.rio40graus.guiascale.rede.PagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
+import br.com.rio40graus.guiascale.rede.ParcialEmbarque
 import br.com.rio40graus.guiascale.rede.ReservaEmbarque
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.STATUS_NO_SHOW
 import br.com.rio40graus.guiascale.rede.STATUS_PARCIAL
+import br.com.rio40graus.guiascale.rede.STATUS_RESERVADO
+import br.com.rio40graus.guiascale.rede.StatusReserva
 import br.com.rio40graus.guiascale.rede.Sessao
 import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.tema.FormaCartao
@@ -74,10 +104,10 @@ import kotlin.math.round
  * Mapa de embarque do app — espelho do `MapaEmbarque.tsx` do web (visão do guia).
  *
  * Abas Em andamento / Finalizados, chip do tour, seções TOUR, FORNECEDORES,
- * EMBARQUES DO DIA e OCORRÊNCIAS. O check-in de cada ponto reusa o mesmo dialog
- * do Geocheck-in.
+ * EMBARQUES DO DIA, OCORRÊNCIAS e INFORMAÇÕES. O check-in de cada ponto reusa
+ * o mesmo dialog do Geocheck-in.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TelaMapaEmbarque(
     aoCarregar: (data: String, aoTerminar: (List<MapaEmbarque>?, String?) -> Unit) -> Unit,
@@ -97,6 +127,14 @@ fun TelaMapaEmbarque(
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoCarregarOcorrencias: (mapaId: Int, aoTerminar: (List<OcorrenciaMapa>?, String?) -> Unit) -> Unit,
     aoCriarOcorrencia: (mapaId: Int, relato: String, aoTerminar: (String?) -> Unit) -> Unit,
+    aoEditarOcorrencia: (id: Int, relato: String, aoTerminar: (String?) -> Unit) -> Unit,
+    aoExcluirOcorrencia: (id: Int, aoTerminar: (String?) -> Unit) -> Unit,
+    aoSalvarPagamentoFornecedor: (
+        acertoFornecedorId: Int,
+        itens: List<ItemPagamentoFornecedor>,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit,
+    aoCarregarNomeGuia: ((String?) -> Unit) -> Unit = {},
 ) {
     val hojeIso = remember { dataIsoMapaHoje() }
     var dataSelecionada by remember { mutableStateOf(hojeIso) }
@@ -110,27 +148,95 @@ fun TelaMapaEmbarque(
     var enviando by remember { mutableStateOf<Int?>(null) }
     var editando by remember { mutableStateOf<Pair<MapaEmbarque, ReservaEmbarque>?>(null) }
     var ocorrencias by remember { mutableStateOf<List<OcorrenciaMapa>>(emptyList()) }
-    var mostrarNovaOcorrencia by remember { mutableStateOf(false) }
     var relatoNovo by remember { mutableStateOf("") }
     var salvandoOcorrencia by remember { mutableStateOf(false) }
+    var editandoOcorrenciaId by remember { mutableStateOf<Int?>(null) }
+    var relatoEdicao by remember { mutableStateOf("") }
+    var salvandoEdicao by remember { mutableStateOf(false) }
+    var excluirOcorrenciaId by remember { mutableStateOf<Int?>(null) }
+    var erroOcorrencia by remember { mutableStateOf<String?>(null) }
+    var editandoFornecedor by remember { mutableStateOf<FornecedorUi?>(null) }
+    var nomeGuia by remember {
+        mutableStateOf(Sessao.nomeExibicao ?: "")
+    }
+    var meuUsuId by remember { mutableStateOf(Sessao.usuId) }
 
     val dataExibicao = remember(dataSelecionada) { formatarDataMapaBr(dataSelecionada) }
-    val nomeGuia = Sessao.login ?: stringResource(R.string.conta_sem_nome)
+    val semNome = stringResource(R.string.conta_sem_nome)
+
+    LaunchedEffect(Unit) {
+        aoCarregarNomeGuia { nome ->
+            nomeGuia = nome?.takeIf { it.isNotBlank() }
+                ?: Sessao.nomeExibicao
+                ?: semNome
+            meuUsuId = Sessao.usuId
+        }
+    }
+
+    fun aplicarMapas(resultado: List<MapaEmbarque>?) {
+        mapas = resultado
+        val lista = resultado.orEmpty()
+        val emAndamento = lista.filter { !it.bloqueado }
+        val finalizados = lista.filter { it.bloqueado }
+        val alvo = if (abaFinalizados) finalizados else emAndamento
+        if (alvo.none { it.id == mapaSelecionadoId }) {
+            mapaSelecionadoId = alvo.firstOrNull()?.id
+        }
+    }
+
+    /** Sem spinner de tela cheia — só atualiza os dados por baixo. */
+    fun recarregarSilencioso() {
+        aoCarregar(dataSelecionada) { resultado, falha ->
+            if (resultado != null) aplicarMapas(resultado)
+            if (falha != null) erro = falha
+        }
+    }
+
+    fun atualizarStatusLocal(
+        reservaId: Int,
+        statusId: Int,
+        parcial: Map<String, Int>?,
+    ) {
+        val nome = when (statusId) {
+            STATUS_CHECK_IN -> "Check-in"
+            STATUS_NO_SHOW -> "No show"
+            STATUS_PARCIAL -> "Parcial"
+            STATUS_RESERVADO -> "Reservado"
+            else -> null
+        }
+        val parcialNovo = parcial?.let {
+            ParcialEmbarque(
+                adulto = it["adulto"] ?: 0,
+                chd = it["chd"] ?: 0,
+                infantil = it["infantil"] ?: 0,
+                jovem = it["jovem"] ?: 0,
+                idoso = it["idoso"] ?: 0,
+            )
+        }
+        mapas = mapas?.map { mapa ->
+            mapa.copy(
+                reservas = mapa.reservas.map { r ->
+                    if (r.id != reservaId) r
+                    else r.copy(
+                        status = StatusReserva(
+                            id = statusId,
+                            nome = nome ?: r.status?.nome,
+                            cor = r.status?.cor,
+                        ),
+                        parcial = parcialNovo ?: r.parcial,
+                    )
+                },
+            )
+        }
+    }
 
     LaunchedEffect(dataSelecionada, recarregar) {
         carregando = true
         erro = null
         aoCarregar(dataSelecionada) { resultado, falha ->
-            mapas = resultado
+            aplicarMapas(resultado)
             erro = falha
             carregando = false
-            val lista = resultado.orEmpty()
-            val emAndamento = lista.filter { !it.bloqueado }
-            val finalizados = lista.filter { it.bloqueado }
-            val alvo = if (abaFinalizados) finalizados else emAndamento
-            if (alvo.none { it.id == mapaSelecionadoId }) {
-                mapaSelecionadoId = alvo.firstOrNull()?.id
-            }
         }
     }
 
@@ -139,6 +245,21 @@ fun TelaMapaEmbarque(
     val finalizados = remember(todos) { todos.filter { it.bloqueado } }
     val daAba = if (abaFinalizados) finalizados else emAndamento
     val mapaAtual = daAba.firstOrNull { it.id == mapaSelecionadoId } ?: daAba.firstOrNull()
+
+    val (paxPresentes, paxReservados) = remember(mapaAtual) {
+        val reservas = mapaAtual?.reservas.orEmpty()
+        val reservados = reservas.sumOf { it.adt + it.chd + it.inf + it.jovem + it.idoso }
+        val presentes = reservas.sumOf { r -> paxPresentesDaReserva(r) }
+        presentes to reservados
+    }
+
+    fun recarregarOcorrencias() {
+        val id = mapaAtual?.id ?: return
+        aoCarregarOcorrencias(id) { lista, falha ->
+            if (lista != null) ocorrencias = lista
+            if (falha != null) erroOcorrencia = falha
+        }
+    }
 
     LaunchedEffect(mapaAtual?.id, recarregar) {
         val id = mapaAtual?.id ?: return@LaunchedEffect
@@ -176,7 +297,6 @@ fun TelaMapaEmbarque(
             erro != null -> Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -190,42 +310,52 @@ fun TelaMapaEmbarque(
             else -> Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 12.dp)
                     .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     stringResource(R.string.mapa_embarque_titulo),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    stringResource(R.string.mapa_embarque_guia, nomeGuia),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    stringResource(R.string.mapa_embarque_data_rotulo, dataExibicao),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                )
 
                 Row(
-                    modifier = Modifier
-                        .clip(FormaBotaoPequeno)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, FormaBotaoPequeno)
-                        .clickable { mostrarCalendario = true }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text(dataExibicao, style = MaterialTheme.typography.labelLarge)
-                    Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = buildString {
+                            append(stringResource(R.string.mapa_embarque_guia))
+                            append(' ')
+                            append(nomeGuia.ifBlank { semNome })
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                    )
+                    Row(
+                        modifier = Modifier
+                            .clip(FormaBotaoPequeno)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, FormaBotaoPequeno)
+                            .clickable { mostrarCalendario = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(dataExibicao, style = MaterialTheme.typography.labelLarge)
+                        Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
                 }
+
+                LegendaAtrasoMapa(
+                    paxPresentes = if (mapaAtual != null) paxPresentes else null,
+                    paxReservados = if (mapaAtual != null) paxReservados else null,
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -274,39 +404,50 @@ fun TelaMapaEmbarque(
                             val pax = m.totais?.pax ?: m.ocupacao?.pax ?: m.reservas.sumOf { it.total ?: 0 }
                             val hora = m.reservas.mapNotNull { it.hora }.minOrNull()?.take(5) ?: "--:--"
                             val ativo = m.id == mapaAtual?.id
+                            // Igual ao web: borda primary + fundo primary/10 + texto primary.
+                            val formaChip = RoundedCornerShape(8.dp)
+                            val corBorda = if (ativo) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline
+                            val corFundo = if (ativo) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            else MaterialTheme.colorScheme.surface
+                            val corTexto = if (ativo) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                            val corSecundaria = if (ativo) MaterialTheme.colorScheme.primary.copy(alpha = 0.70f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                             Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(
-                                        if (ativo) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surface,
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (ativo) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outline,
-                                        RoundedCornerShape(20.dp),
-                                    )
+                                    .clip(formaChip)
+                                    .background(corFundo)
+                                    .border(1.dp, corBorda, formaChip)
                                     .clickable { mapaSelecionadoId = m.id }
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
                                 Text(
-                                    "${m.tour.orEmpty()} · $hora · $pax pax",
-                                    color = if (ativo) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurface,
+                                    m.tour.orEmpty().ifBlank { "Passeio" },
+                                    color = corTexto,
                                     style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = if (ativo) FontWeight.SemiBold else FontWeight.Medium,
                                 )
                                 if (m.eh_apoio) {
                                     Text(
                                         stringResource(R.string.mapa_embarque_apoio),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFFEEE0FF))
+                                            .border(1.dp, Color(0xFFC4B5FD), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 1.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color(0xFF6D28D9),
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
+                                Text(
+                                    "· $hora · $pax pax",
+                                    color = corSecundaria,
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
                             }
                         }
                     }
@@ -329,11 +470,16 @@ fun TelaMapaEmbarque(
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_fornecedores),
                             abertaInicial = false,
-                        ) { SecaoFornecedores(mapa) }
+                        ) {
+                            SecaoFornecedores(
+                                mapa = mapa,
+                                aoInformarPagamento = { editandoFornecedor = it },
+                            )
+                        }
 
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_embarques),
-                            abertaInicial = true,
+                            abertaInicial = false,
                         ) {
                             if (mapa.reservas.isEmpty()) {
                                 Text(
@@ -344,12 +490,32 @@ fun TelaMapaEmbarque(
                             } else {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     mapa.reservas.sortedBy { it.hora ?: "" }.forEach { reserva ->
-                                        CartaoEmbarque(
-                                            reserva = reserva,
-                                            bloqueado = mapa.bloqueado,
-                                            enviando = enviando == reserva.id,
-                                            aoEditar = { editando = mapa to reserva },
-                                        )
+                                        key(reserva.id) {
+                                            CartaoEmbarque(
+                                                reserva = reserva,
+                                                bloqueado = mapa.bloqueado,
+                                                enviando = enviando == reserva.id,
+                                                aoEditar = { editando = mapa to reserva },
+                                                aoTrocarStatus = { statusId, motivoId, parcial, aoTerminar ->
+                                                    enviando = reserva.id
+                                                    aoTrocarStatus(
+                                                        reserva.id,
+                                                        mapa.id,
+                                                        statusId,
+                                                        motivoId,
+                                                        parcial,
+                                                    ) { falha ->
+                                                        enviando = null
+                                                        aoTerminar(falha)
+                                                        if (falha == null) {
+                                                            atualizarStatusLocal(reserva.id, statusId, parcial)
+                                                            recarregarSilencioso()
+                                                        }
+                                                    }
+                                                },
+                                                aoCarregarMotivos = aoCarregarMotivos,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -359,53 +525,71 @@ fun TelaMapaEmbarque(
                             titulo = stringResource(R.string.mapa_embarque_ocorrencias),
                             abertaInicial = false,
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (ocorrencias.isEmpty()) {
-                                    Text(
-                                        stringResource(R.string.mapa_embarque_sem_ocorrencia),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                } else {
-                                    ocorrencias.forEach { o ->
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(FormaBotaoPequeno)
-                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, FormaBotaoPequeno)
-                                                .padding(10.dp),
-                                        ) {
-                                            Text(
-                                                o.autor_nome.orEmpty(),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            Text(
-                                                o.relato.orEmpty(),
-                                                style = MaterialTheme.typography.bodySmall,
-                                            )
-                                            o.status?.takeIf { it.isNotBlank() }?.let {
-                                                Text(
-                                                    it,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                )
-                                            }
+                            SecaoOcorrencias(
+                                ocorrencias = ocorrencias,
+                                bloqueado = mapa.bloqueado,
+                                relatoNovo = relatoNovo,
+                                salvando = salvandoOcorrencia,
+                                editandoId = editandoOcorrenciaId,
+                                relatoEdicao = relatoEdicao,
+                                salvandoEdicao = salvandoEdicao,
+                                erro = erroOcorrencia,
+                                meuUsuId = meuUsuId,
+                                aoMudarRelato = { relatoNovo = it },
+                                aoSalvar = {
+                                    val texto = relatoNovo.trim()
+                                    if (texto.isEmpty() || salvandoOcorrencia) return@SecaoOcorrencias
+                                    salvandoOcorrencia = true
+                                    erroOcorrencia = null
+                                    aoCriarOcorrencia(mapa.id, texto) { falha ->
+                                        salvandoOcorrencia = false
+                                        if (falha == null) {
+                                            relatoNovo = ""
+                                            recarregarOcorrencias()
+                                        } else {
+                                            erroOcorrencia = falha
                                         }
                                     }
-                                }
-                                if (!mapa.bloqueado) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            relatoNovo = ""
-                                            mostrarNovaOcorrencia = true
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text(stringResource(R.string.mapa_embarque_nova_ocorrencia))
+                                },
+                                aoIniciarEdicao = { o ->
+                                    editandoOcorrenciaId = o.id
+                                    relatoEdicao = o.relato.orEmpty()
+                                },
+                                aoCancelarEdicao = {
+                                    editandoOcorrenciaId = null
+                                    relatoEdicao = ""
+                                },
+                                aoMudarEdicao = { relatoEdicao = it },
+                                aoSalvarEdicao = { id ->
+                                    val texto = relatoEdicao.trim()
+                                    if (texto.isEmpty() || salvandoEdicao) return@SecaoOcorrencias
+                                    salvandoEdicao = true
+                                    erroOcorrencia = null
+                                    aoEditarOcorrencia(id, texto) { falha ->
+                                        salvandoEdicao = false
+                                        if (falha == null) {
+                                            editandoOcorrenciaId = null
+                                            relatoEdicao = ""
+                                            recarregarOcorrencias()
+                                        } else {
+                                            erroOcorrencia = falha
+                                        }
                                     }
-                                }
-                            }
+                                },
+                                aoPedirExcluir = { excluirOcorrenciaId = it },
+                            )
+                        }
+
+                        SecaoExpansivel(
+                            titulo = stringResource(R.string.mapa_embarque_informacoes),
+                            abertaInicial = false,
+                        ) {
+                            // API ainda não envia info_importante (igual ao web).
+                            Text(
+                                stringResource(R.string.mapa_embarque_sem_info),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
@@ -438,48 +622,375 @@ fun TelaMapaEmbarque(
                     },
                 ),
                 aoFechar = { if (enviando != atual.id) editando = null },
-                aoRecarregar = { recarregar++ },
+                aoRecarregar = { recarregarSilencioso() },
             )
         }
 
-        if (mostrarNovaOcorrencia && mapaAtual != null) {
+        excluirOcorrenciaId?.let { idExcluir ->
             AlertDialog(
-                onDismissRequest = { if (!salvandoOcorrencia) mostrarNovaOcorrencia = false },
-                title = { Text(stringResource(R.string.mapa_embarque_nova_ocorrencia)) },
-                text = {
-                    OutlinedTextField(
-                        value = relatoNovo,
-                        onValueChange = { relatoNovo = it },
-                        label = { Text(stringResource(R.string.mapa_embarque_relato)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                    )
-                },
+                onDismissRequest = { excluirOcorrenciaId = null },
+                title = { Text(stringResource(R.string.mapa_embarque_excluir_titulo)) },
+                text = { Text(stringResource(R.string.mapa_embarque_excluir_texto)) },
                 confirmButton = {
                     TextButton(
-                        enabled = relatoNovo.isNotBlank() && !salvandoOcorrencia,
                         onClick = {
-                            salvandoOcorrencia = true
-                            aoCriarOcorrencia(mapaAtual.id, relatoNovo.trim()) { falha ->
-                                salvandoOcorrencia = false
+                            aoExcluirOcorrencia(idExcluir) { falha ->
                                 if (falha == null) {
-                                    mostrarNovaOcorrencia = false
-                                    recarregar++
+                                    excluirOcorrenciaId = null
+                                    if (editandoOcorrenciaId == idExcluir) {
+                                        editandoOcorrenciaId = null
+                                        relatoEdicao = ""
+                                    }
+                                    recarregarOcorrencias()
                                 } else {
-                                    erro = falha
+                                    erroOcorrencia = falha
+                                    excluirOcorrenciaId = null
                                 }
                             }
                         },
-                    ) { Text(stringResource(R.string.mapa_embarque_salvar_ocorrencia)) }
+                    ) { Text(stringResource(R.string.confirmar)) }
                 },
                 dismissButton = {
-                    TextButton(
-                        onClick = { mostrarNovaOcorrencia = false },
-                        enabled = !salvandoOcorrencia,
-                    ) { Text(stringResource(R.string.cancelar)) }
+                    TextButton(onClick = { excluirOcorrenciaId = null }) {
+                        Text(stringResource(R.string.cancelar))
+                    }
                 },
             )
         }
+
+        editandoFornecedor?.let { forn ->
+            val acertoId = forn.acertoFornecedorId ?: return@let
+            DialogPagamentoFornecedor(
+                empresa = forn.empresa,
+                total = forn.total ?: 0.0,
+                pagamentosIniciais = forn.pagamentos,
+                aoCarregarFormas = aoCarregarFormas,
+                aoCarregarParcelas = aoCarregarParcelas,
+                aoSalvar = { itens, aoTerminar ->
+                    aoSalvarPagamentoFornecedor(acertoId, itens, aoTerminar)
+                },
+                aoFechar = { editandoFornecedor = null },
+                aoRecarregar = { recarregarSilencioso() },
+            )
+        }
+    }
+}
+
+/** Espelho do `OcorrenciasSection.tsx` do web. */
+@Composable
+private fun SecaoOcorrencias(
+    ocorrencias: List<OcorrenciaMapa>,
+    bloqueado: Boolean,
+    relatoNovo: String,
+    salvando: Boolean,
+    editandoId: Int?,
+    relatoEdicao: String,
+    salvandoEdicao: Boolean,
+    erro: String?,
+    meuUsuId: Int?,
+    aoMudarRelato: (String) -> Unit,
+    aoSalvar: () -> Unit,
+    aoIniciarEdicao: (OcorrenciaMapa) -> Unit,
+    aoCancelarEdicao: () -> Unit,
+    aoMudarEdicao: (String) -> Unit,
+    aoSalvarEdicao: (Int) -> Unit,
+    aoPedirExcluir: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (!bloqueado) {
+            OutlinedTextField(
+                value = relatoNovo,
+                onValueChange = aoMudarRelato,
+                placeholder = { Text(stringResource(R.string.mapa_embarque_relato_placeholder)) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 5,
+                enabled = !salvando,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = aoSalvar,
+                    enabled = relatoNovo.isNotBlank() && !salvando,
+                ) {
+                    if (salvando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.mapa_embarque_salvando_relato))
+                    } else {
+                        Text(stringResource(R.string.mapa_embarque_salvar_relato))
+                    }
+                }
+            }
+        }
+
+        erro?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (ocorrencias.isEmpty()) {
+            Text(
+                stringResource(R.string.mapa_embarque_sem_ocorrencia),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ocorrencias.forEach { o ->
+                    val resolvida = o.status.equals("RESOLVIDA", ignoreCase = true)
+                    val podeEditar = !bloqueado && !resolvida &&
+                        meuUsuId != null && o.usuario_id == meuUsuId
+                    val editando = editandoId == o.id
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            val criadoFmt = formatarDataOcorrencia(o.data_adicionado)
+                            val alteradoFmt = formatarDataOcorrencia(o.data_alterado)
+                            val criado = parseDataOcorrencia(o.data_adicionado)
+                            val alterado = parseDataOcorrencia(o.data_alterado)
+                            val editadoSufixo = if (
+                                criado != null && alterado != null &&
+                                alterado.time - criado.time > 60_000 &&
+                                alteradoFmt != null
+                            ) {
+                                stringResource(R.string.mapa_embarque_editado_em, alteradoFmt)
+                            } else {
+                                ""
+                            }
+                            val resolvidaSufixo = if (resolvida) {
+                                " · ${stringResource(R.string.mapa_embarque_resolvida)}"
+                            } else {
+                                ""
+                            }
+                            Text(
+                                buildString {
+                                    append(o.autor_nome?.takeIf { it.isNotBlank() } ?: "—")
+                                    if (criadoFmt != null) {
+                                        append(" · ")
+                                        append(criadoFmt)
+                                    }
+                                    append(editadoSufixo)
+                                    append(resolvidaSufixo)
+                                },
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (resolvida) Color(0xFF059669)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (podeEditar) {
+                                if (editando) {
+                                    IconButton(
+                                        onClick = { aoSalvarEdicao(o.id) },
+                                        enabled = relatoEdicao.isNotBlank() && !salvandoEdicao,
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        if (salvandoEdicao) {
+                                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                        } else {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = stringResource(R.string.confirmar),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = aoCancelarEdicao,
+                                        enabled = !salvandoEdicao,
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = stringResource(R.string.cancelar),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                } else {
+                                    IconButton(
+                                        onClick = { aoIniciarEdicao(o) },
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Edit,
+                                            contentDescription = stringResource(R.string.mapa_embarque_editar_ocorrencia),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { aoPedirExcluir(o.id) },
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = stringResource(R.string.mapa_embarque_excluir_ocorrencia),
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (editando) {
+                            OutlinedTextField(
+                                value = relatoEdicao,
+                                onValueChange = aoMudarEdicao,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                minLines = 4,
+                                enabled = !salvandoEdicao,
+                            )
+                        } else {
+                            Text(
+                                o.relato.orEmpty(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun parseDataOcorrencia(valor: String?): Date? {
+    if (valor.isNullOrBlank()) return null
+    val bruto = valor.trim()
+    val candidatos = listOf(bruto, bruto.replace(' ', 'T'))
+    val formatos = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd",
+    )
+    for (texto in candidatos) {
+        for (padrao in formatos) {
+            val data = runCatching {
+                SimpleDateFormat(padrao, Locale.US).apply { isLenient = true }.parse(texto)
+            }.getOrNull()
+            if (data != null) return data
+        }
+    }
+    return null
+}
+
+private fun formatarDataOcorrencia(valor: String?): String? {
+    val data = parseDataOcorrencia(valor) ?: return null
+    return SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(data)
+}
+
+/** Igual a `presentes()` do web (paxDaReserva.ts), usando ids de status da API. */
+private fun paxPresentesDaReserva(r: ReservaEmbarque): Int {
+    val statusId = r.status?.id
+    if (statusId == STATUS_NO_SHOW) return 0
+    val total = r.adt + r.chd + r.inf + r.jovem + r.idoso
+    if (statusId != STATUS_PARCIAL) return total
+    val p = r.parcial
+    return maxOf(0, r.adt - (p?.adulto ?: 0)) +
+        maxOf(0, r.chd - (p?.chd ?: 0)) +
+        maxOf(0, r.inf - (p?.infantil ?: 0)) +
+        maxOf(0, r.jovem - (p?.jovem ?: 0)) +
+        maxOf(0, r.idoso - (p?.idoso ?: 0))
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LegendaAtrasoMapa(
+    paxPresentes: Int? = null,
+    paxReservados: Int? = null,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Schedule,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(R.string.mapa_embarque_legenda_atraso),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ChipAtraso(
+            texto = stringResource(R.string.embarque_atraso_ate_15),
+            bolinha = Color(0xFF3B82F6),
+            fundo = Color(0xFFDBEAFE),
+            textoCor = Color(0xFF1E40AF),
+            borda = Color(0xFF93C5FD),
+        )
+        ChipAtraso(
+            texto = stringResource(R.string.embarque_atraso_acima_15),
+            bolinha = Color(0xFFEF4444),
+            fundo = Color(0xFFFEE2E2),
+            textoCor = Color(0xFFB91C1C),
+            borda = Color(0xFFFCA5A5),
+        )
+        if (paxPresentes != null && paxReservados != null) {
+            Text(
+                stringResource(R.string.mapa_embarque_pax, paxPresentes, paxReservados),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFDCFCE7))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                color = Color(0xFF15803D),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipAtraso(
+    texto: String,
+    bolinha: Color,
+    fundo: Color,
+    textoCor: Color,
+    borda: Color,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, borda, RoundedCornerShape(6.dp))
+            .background(fundo)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(bolinha),
+        )
+        Text(text = texto, style = MaterialTheme.typography.labelSmall, color = textoCor)
     }
 }
 
@@ -488,14 +999,20 @@ private fun SecaoTour(mapa: MapaEmbarque) {
     val totais = mapa.totais
     val reservas = mapa.reservas
     val saida = reservas.mapNotNull { it.hora }.minOrNull()?.take(5) ?: "--:--"
-    val totalAReceber = reservas.sumOf { it.a_receber + it.taxas }
+    // Igual ao web (MapaEmbarque.tsx): a_receber já inclui taxas de cais;
+    // só se soma a taxa de cartão dos pagamentos lançados (taxaCartaoLancada).
+    val totalAReceber = reservas.sumOf { r ->
+        r.a_receber + r.pagamentos.sumOf { it.taxa }
+    }
     val porForma = mutableMapOf<String, Double>()
     var totalRecebido = 0.0
     reservas.forEach { r ->
         r.pagamentos.forEach { p ->
+            // Valor na máquina = base + taxa, como rotuloDoPagamento no web.
+            val naMaquina = p.valor + p.taxa
             val nome = listOfNotNull(p.tipo, p.forma).joinToString(" - ").ifBlank { "Pagamento" }
-            porForma[nome] = (porForma[nome] ?: 0.0) + p.valor
-            totalRecebido += p.valor
+            porForma[nome] = (porForma[nome] ?: 0.0) + naMaquina
+            totalRecebido += naMaquina
         }
     }
     val saldo = round2(totalAReceber - totalRecebido)
@@ -555,103 +1072,228 @@ private fun SecaoTour(mapa: MapaEmbarque) {
 }
 
 @Composable
-private fun SecaoFornecedores(mapa: MapaEmbarque) {
-    val fornecedores = mapa.fornecedores
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (mapa.fornecedor != null || mapa.motorista != null || mapa.veiculo != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(FormaBotaoPequeno)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, FormaBotaoPequeno)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    mapa.fornecedor ?: "—",
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    "${stringResource(R.string.mapa_embarque_motorista)}: ${mapa.motorista?.nome ?: "—"}  ·  " +
-                        "${stringResource(R.string.mapa_embarque_telefone)}: ${mapa.motorista?.telefone ?: "—"}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    "${stringResource(R.string.mapa_embarque_carro)}: " +
-                        listOfNotNull(mapa.veiculo?.modelo, mapa.veiculo?.tipo, mapa.veiculo?.placa)
-                            .joinToString(" · ")
-                            .ifBlank { "—" },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                mapa.transporte_despesa?.let { d ->
-                    Text(dinheiro(d.valor), fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
+private fun SecaoFornecedores(
+    mapa: MapaEmbarque,
+    aoInformarPagamento: (FornecedorUi) -> Unit,
+) {
+    // Mesma montagem do web (`paraFornecedores`): transporte do mapa + demais.
+    val fornecedoresUi = remember(mapa) { fornecedoresDoMapa(mapa) }
 
-        if (fornecedores.isEmpty() && mapa.fornecedor == null) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (fornecedoresUi.isEmpty()) {
             Text(
                 stringResource(R.string.mapa_embarque_sem_fornecedor),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
+        } else {
+            fornecedoresUi.forEach { f ->
+                BlocoFornecedor(
+                    f = f,
+                    bloqueado = mapa.bloqueado,
+                    aoInformarPagamento = { aoInformarPagamento(f) },
+                )
+            }
         }
 
-        fornecedores.forEach { f ->
-            CartaoFornecedor(f)
-        }
-
-        val totalAPagar = fornecedores.sumOf { it.valor } + (mapa.transporte_despesa?.valor ?: 0.0)
-        val pagos = fornecedores.flatMap { it.pagamentos } +
-            (mapa.transporte_despesa?.pagamentos.orEmpty())
-        val totalPago = pagos.sumOf { it.valor }
+        // Rodapé igual ao web (`MapaEmbarque.tsx`): TOTAL PAGO / SALDO vêm de
+        // `payment_method` via parsePaymentMethod. No adapter (`paraFornecedores`)
+        // esse campo é sempre null — o pago real mora em `pagamentos` e só
+        // aparece no card ("Ver pagamentos · pago …"). Espelhar o web aqui.
+        val totalAPagar = fornecedoresUi.sumOf { it.total ?: 0.0 }
+        val totalPago = 0.0
         val saldo = round2(totalAPagar - totalPago)
-        if (totalAPagar > 0 || totalPago > 0) {
+        if (fornecedoresUi.isNotEmpty()) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant),
             )
-            LinhaCyan(stringResource(R.string.mapa_embarque_valor_pagar), dinheiro(totalAPagar))
-            if (totalPago > 0) {
-                LinhaCyan(stringResource(R.string.mapa_embarque_total_pago), dinheiro(totalPago))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                LinhaCyan(stringResource(R.string.mapa_embarque_valor_pagar), dinheiro(totalAPagar))
+                LinhaCyan(
+                    stringResource(R.string.mapa_embarque_saldo_pagar),
+                    dinheiro(saldo),
+                    destaque = saldo > 0.009,
+                )
             }
-            LinhaCyan(
-                stringResource(R.string.mapa_embarque_saldo_pagar),
-                dinheiro(saldo),
-                destaque = saldo > 0.009,
-            )
         }
     }
 }
 
+/**
+ * Espelho de `paraFornecedores` no web: 1º o transporte do mapa, depois a lista.
+ */
+private fun fornecedoresDoMapa(mapa: MapaEmbarque): List<FornecedorUi> {
+    val temTransporte = !mapa.fornecedor.isNullOrBlank() ||
+        mapa.motorista?.nome != null ||
+        mapa.veiculo?.modelo != null
+    val demais = mapa.fornecedores.mapIndexed { i, f ->
+        FornecedorUi(
+            id = "forn-$i",
+            ehTransporte = false,
+            empresa = f.nome ?: "—",
+            atividade = f.atividade,
+            contato = null,
+            motorista = null,
+            telefone = null,
+            carroModelo = null,
+            capacidade = null,
+            placa = null,
+            pax = f.pax,
+            total = f.valor,
+            observacao = f.descricao,
+            acertoFornecedorId = f.acerto_fornecedor_id,
+            permitePagamento = f.permite_pagamento,
+            pagamentos = f.pagamentos,
+        )
+    }
+    if (!temTransporte) return demais
+
+    val transporte = mapa.transporte_despesa
+    val totalTransporte = when {
+        transporte != null -> transporte.valor
+        (mapa.totais?.a_pagar ?: 0.0) > 0 -> mapa.totais!!.a_pagar
+        else -> null
+    }
+    val carro = listOfNotNull(mapa.veiculo?.tipo, mapa.veiculo?.modelo)
+        .joinToString(" · ")
+        .ifBlank { null }
+
+    val linhaTransporte = FornecedorUi(
+        id = "transporte",
+        ehTransporte = true,
+        empresa = mapa.fornecedor ?: "—",
+        atividade = mapa.tour,
+        contato = mapa.motorista?.nome,
+        motorista = mapa.motorista?.nome,
+        telefone = mapa.motorista?.telefone,
+        carroModelo = carro,
+        capacidade = mapa.veiculo?.capacidade?.toString(),
+        placa = mapa.veiculo?.placa,
+        pax = mapa.totais?.pax,
+        total = totalTransporte,
+        observacao = transporte?.descricao,
+        acertoFornecedorId = transporte?.acerto_fornecedor_id?.takeIf { it > 0 },
+        permitePagamento = transporte?.permite_pagamento != false && transporte != null,
+        pagamentos = transporte?.pagamentos.orEmpty(),
+    )
+    return listOf(linhaTransporte) + demais
+}
+
+private data class FornecedorUi(
+    val id: String,
+    val ehTransporte: Boolean,
+    val empresa: String,
+    val atividade: String?,
+    val contato: String?,
+    val motorista: String?,
+    val telefone: String?,
+    val carroModelo: String?,
+    val capacidade: String?,
+    val placa: String?,
+    val pax: Int?,
+    val total: Double?,
+    val observacao: String?,
+    val acertoFornecedorId: Int?,
+    val permitePagamento: Boolean,
+    val pagamentos: List<PagamentoFornecedor>,
+)
+
 @Composable
-private fun CartaoFornecedor(f: FornecedorMapa) {
+private fun BlocoFornecedor(
+    f: FornecedorUi,
+    bloqueado: Boolean,
+    aoInformarPagamento: () -> Unit,
+) {
+    val podeLancar = f.acertoFornecedorId != null && f.permitePagamento && !bloqueado
+    val pago = f.pagamentos.sumOf { it.valor }
+    val total = f.total ?: 0.0
+
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(FormaBotaoPequeno)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, FormaBotaoPequeno)
-            .padding(10.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
-            f.nome ?: "—",
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        f.atividade?.takeIf { it.isNotBlank() }?.let {
-            Text(it, style = MaterialTheme.typography.labelSmall)
+        LinhaCampo(stringResource(R.string.mapa_embarque_empresa), f.empresa)
+        if (!f.ehTransporte) {
+            f.atividade?.takeIf { it.isNotBlank() }?.let {
+                LinhaCampo(stringResource(R.string.mapa_embarque_atividade), it)
+            }
         }
-        f.descricao?.takeIf { it.isNotBlank() }?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall)
+        f.contato?.takeIf { it.isNotBlank() }?.let {
+            LinhaCampo(stringResource(R.string.mapa_embarque_contato), it)
         }
-        Text(dinheiro(f.valor), fontWeight = FontWeight.SemiBold)
-        f.pagamentos.forEach { p ->
+        if (f.motorista != null || f.telefone != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LinhaCampo(
+                    stringResource(R.string.mapa_embarque_motorista_rotulo),
+                    f.motorista ?: "—",
+                )
+                LinhaCampo(
+                    stringResource(R.string.mapa_embarque_telefone_rotulo),
+                    f.telefone ?: "—",
+                )
+            }
+        }
+        if (f.carroModelo != null || f.capacidade != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LinhaCampo(
+                    stringResource(R.string.mapa_embarque_carro_rotulo),
+                    f.carroModelo ?: "—",
+                )
+                if (f.capacidade != null) {
+                    LinhaCampo(stringResource(R.string.mapa_embarque_capacidade), f.capacidade)
+                }
+            }
+        }
+        f.placa?.takeIf { it.isNotBlank() }?.let {
+            LinhaCampo(stringResource(R.string.mapa_embarque_placa), it)
+        }
+        f.pax?.let {
+            LinhaCampo(stringResource(R.string.mapa_embarque_qtd_pax), it.toString())
+        }
+        if (f.total != null) {
             Text(
-                "${p.forma ?: "Pago"}: ${dinheiro(p.valor)}",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (podeLancar) Modifier.clickable(onClick = aoInformarPagamento)
+                        else Modifier,
+                    ),
+                text = buildString {
+                    append(stringResource(R.string.mapa_embarque_total))
+                    append(' ')
+                    append(dinheiro(f.total))
+                },
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                textDecoration = if (f.acertoFornecedorId != null) TextDecoration.Underline else null,
+            )
+        }
+        if (podeLancar) {
+            val falta = round2(total - pago)
+            Text(
+                text = when {
+                    pago > 0 && falta > 0.005 -> stringResource(
+                        R.string.mapa_embarque_ver_pagamentos_falta,
+                        dinheiro(pago),
+                        dinheiro(falta),
+                    )
+                    pago > 0 -> stringResource(R.string.mapa_embarque_ver_pagamentos, dinheiro(pago))
+                    else -> stringResource(R.string.mapa_embarque_informar_pagamento)
+                },
+                modifier = Modifier.clickable(onClick = aoInformarPagamento),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                textDecoration = TextDecoration.Underline,
+            )
+        }
+        f.observacao?.takeIf { it.isNotBlank() && it != f.atividade }?.let {
+            Text(
+                it,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -660,76 +1302,680 @@ private fun CartaoFornecedor(f: FornecedorMapa) {
 }
 
 @Composable
+private fun LinhaCampo(
+    rotulo: String,
+    valor: String,
+    valorSublinhado: Boolean = false,
+) {
+    Row {
+        Text(
+            rotulo,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            valor,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            textDecoration = if (valorSublinhado) TextDecoration.Underline else null,
+        )
+    }
+}
+
+private data class OpcaoStatusEmbarque(
+    val id: Int,
+    val rotulo: String,
+    val permitido: Boolean,
+    val corAtiva: Color,
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun CartaoEmbarque(
     reserva: ReservaEmbarque,
     bloqueado: Boolean,
     enviando: Boolean,
     aoEditar: () -> Unit,
+    aoTrocarStatus: (
+        statusId: Int,
+        motivoId: Int?,
+        parcial: Map<String, Int>?,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit,
+    aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
 ) {
-    val statusCor = when (reserva.status?.id) {
-        STATUS_CHECK_IN -> Color(0xFF16A34A)
-        STATUS_NO_SHOW -> Color(0xFFDA4553)
-        STATUS_PARCIAL -> Color(0xFFF59E0B)
-        else -> Color(0xFF3B82F6)
+    var aberto by remember(reserva.id) { mutableStateOf(false) }
+    var dialogoMotivo by remember { mutableStateOf(false) }
+    var dialogoParcial by remember { mutableStateOf(false) }
+    var motivos by remember { mutableStateOf<RespostaMotivos?>(null) }
+    var carregandoMotivos by remember { mutableStateOf(false) }
+    var categoriaId by remember { mutableStateOf<Int?>(null) }
+    var motivoId by remember { mutableStateOf<Int?>(null) }
+    var adulto by remember { mutableStateOf("0") }
+    var chd by remember { mutableStateOf("0") }
+    var infantil by remember { mutableStateOf("0") }
+    var jovem by remember { mutableStateOf("0") }
+    var idoso by remember { mutableStateOf("0") }
+    var statusLocal by remember(reserva.id) { mutableStateOf(reserva.status?.id) }
+    var erroStatus by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(reserva.status?.id) {
+        statusLocal = reserva.status?.id
     }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(FormaCartao)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, FormaCartao)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "${reserva.hora?.take(5) ?: "--:--"} · ${reserva.embarque.orEmpty()}",
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                reserva.status?.nome ?: "—",
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(statusCor)
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        reserva.pax?.takeIf { it.isNotBlank() }?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall)
-        }
-        Text(
-            listOfNotNull(
-                reserva.bairro,
-                reserva.apto?.takeIf { it.isNotBlank() }?.let { "Apto $it" },
-            ).joinToString(" · ").ifBlank { reserva.endereco.orEmpty() },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            "A receber: ${dinheiro(reserva.a_receber)}",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (enviando) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-        } else {
-            TextButton(
-                onClick = aoEditar,
-                enabled = !bloqueado,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(stringResource(R.string.mapa_embarque_checkin_editar))
+
+    LaunchedEffect(dialogoMotivo) {
+        if (dialogoMotivo && motivos == null && !carregandoMotivos) {
+            carregandoMotivos = true
+            aoCarregarMotivos { lista, falha ->
+                carregandoMotivos = false
+                if (falha != null) erroStatus = falha else motivos = lista
             }
         }
     }
+
+    val contexto = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+
+    val situacao = situacaoFinanceira(reserva.a_receber, reserva.pagamentos.sumOf { it.valor })
+    val (fundo, borda) = when (situacao) {
+        SituacaoFinanceira.RECEBIDO -> Color(0xFFDCFCE7) to Color(0xFF86EFAC)
+        SituacaoFinanceira.PARCIAL -> Color(0xFFFEF3C7) to Color(0xFFFCD34D)
+        SituacaoFinanceira.ABERTO -> Color(0xFFFEE2E2) to Color(0xFFFCA5A5)
+    }
+    val (seloFundo, seloTexto, seloBorda) = coresSeloStatus(statusLocal)
+    val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
+        ?: reserva.endereco?.takeIf { it.isNotBlank() }
+        ?: "—"
+    val hora = reserva.hora?.take(5) ?: "—"
+    val opcoesStatus = listOf(
+        OpcaoStatusEmbarque(STATUS_CHECK_IN, "Check-in", true, Color(0xFF16A34A)),
+        OpcaoStatusEmbarque(STATUS_RESERVADO, "Reservado", false, Color(0xFF3B82F6)),
+        OpcaoStatusEmbarque(STATUS_NO_SHOW, "No show", true, Color(0xFFDA4553)),
+        OpcaoStatusEmbarque(STATUS_PARCIAL, "Parcial", true, Color(0xFF3B82F6)),
+    )
+    val opcaoAtual = opcoesStatus.firstOrNull { it.id == statusLocal }
+        ?: OpcaoStatusEmbarque(
+            statusLocal ?: 0,
+            reserva.status?.nome ?: "Status",
+            false,
+            Color(0xFF94A3B8),
+        )
+    val statusNome = opcaoAtual.rotulo.uppercase(Locale.getDefault())
+    val ehParcial = statusLocal == STATUS_PARCIAL
+    val qtd = if (ehParcial) {
+        listOf(
+            reserva.parcial?.adulto ?: 0,
+            reserva.parcial?.chd ?: 0,
+            reserva.parcial?.infantil ?: 0,
+        ).joinToString(" ")
+    } else {
+        listOf(reserva.adt, reserva.chd, reserva.inf).joinToString(" ")
+    }
+    val bandeira = bandeiraIdioma(reserva.idioma)
+    val totalCobrar = reserva.a_receber + reserva.pagamentos.sumOf { it.taxa }
+    val taxasCadastro = reserva.taxas
+    val taxasNoSaldo = minOf(taxasCadastro, totalCobrar)
+    val passeioNoSaldo = maxOf(0.0, totalCobrar - taxasNoSaldo)
+    val mostrarBreakdown = taxasNoSaldo > 0.005
+
+    fun gravarStatus(statusId: Int, motivo: Int? = null, parcial: Map<String, Int>? = null) {
+        erroStatus = null
+        aoTrocarStatus(statusId, motivo, parcial) { falha ->
+            if (falha == null) {
+                statusLocal = statusId
+                dialogoMotivo = false
+                dialogoParcial = false
+            } else {
+                erroStatus = falha
+            }
+        }
+    }
+
+    fun escolherStatus(id: Int) {
+        if (bloqueado || enviando || id == statusLocal) return
+        when (id) {
+            STATUS_CHECK_IN -> gravarStatus(STATUS_CHECK_IN)
+            STATUS_NO_SHOW -> {
+                categoriaId = null
+                motivoId = null
+                dialogoMotivo = true
+            }
+            STATUS_PARCIAL -> {
+                adulto = (reserva.parcial?.adulto ?: 0).toString()
+                chd = (reserva.parcial?.chd ?: 0).toString()
+                infantil = (reserva.parcial?.infantil ?: 0).toString()
+                jovem = (reserva.parcial?.jovem ?: 0).toString()
+                idoso = (reserva.parcial?.idoso ?: 0).toString()
+                dialogoParcial = true
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(fundo)
+            .border(1.dp, borda, RoundedCornerShape(8.dp)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { aberto = !aberto }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Place,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    hotel,
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    statusNome,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(seloFundo)
+                        .border(1.dp, seloBorda, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = seloTexto,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    hora,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.mapa_embarque_apto),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        reserva.apto?.takeIf { it.isNotBlank() } ?: "—",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textDecoration = TextDecoration.Underline,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.mapa_embarque_qtd),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        qtd,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        textDecoration = TextDecoration.Underline,
+                    )
+                }
+                if (bandeira.isNotEmpty()) {
+                    Text(bandeira, style = MaterialTheme.typography.titleMedium)
+                }
+                reserva.telefone?.takeIf { it.isNotBlank() }?.let { tel ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            tel,
+                            modifier = Modifier.clickable {
+                                linkWhatsapp(tel)?.let { uriHandler.openUri(it) }
+                            },
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            textDecoration = TextDecoration.Underline,
+                        )
+                        Icon(
+                            Icons.Filled.Phone,
+                            contentDescription = stringResource(R.string.mapa_embarque_ligar),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable {
+                                    linkLigacao(tel)?.let { uri ->
+                                        runCatching {
+                                            contexto.startActivity(
+                                                Intent(Intent.ACTION_DIAL, Uri.parse(uri)),
+                                            )
+                                        }
+                                    }
+                                },
+                        )
+                    }
+                }
+                if (!reserva.observacao.isNullOrBlank()) {
+                    Icon(
+                        Icons.Filled.Email,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                if (statusLocal == STATUS_CHECK_IN) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF16A34A),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+
+        if (aberto) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(borda),
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row {
+                    Text(
+                        "ID ",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "${reserva.id}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    reserva.voucher?.takeIf { it.isNotBlank() }?.let { v ->
+                        Text(" · ", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Voucher: ",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(v, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+                reserva.pax?.takeIf { it.isNotBlank() }?.let {
+                    LinhaCampo(stringResource(R.string.mapa_embarque_nome), it)
+                }
+                reserva.passeio?.takeIf { it.isNotBlank() }?.let {
+                    LinhaCampo(stringResource(R.string.mapa_embarque_pacote), it)
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(enabled = !bloqueado) { aoEditar() }
+                        .padding(vertical = 2.dp),
+                ) {
+                    Row {
+                        Text(
+                            stringResource(R.string.mapa_embarque_a_receber_rotulo),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            dinheiro(if (mostrarBreakdown) passeioNoSaldo else totalCobrar),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            textDecoration = TextDecoration.Underline,
+                        )
+                        if (statusLocal == STATUS_NO_SHOW && totalCobrar > 0.005) {
+                            Text(
+                                " (taxa de no-show)",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    if (mostrarBreakdown) {
+                        Text(
+                            "+ TAXAS: ${dinheiro(taxasNoSaldo)} = TOTAL: ${dinheiro(totalCobrar)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    if ((reserva.cortesia ?: 0.0) > 0.005) {
+                        Text(
+                            "Cortesia",
+                            color = Color(0xFF047857),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+
+                reserva.observacao?.takeIf { it.isNotBlank() }?.let { obs ->
+                    Row {
+                        Text(
+                            stringResource(R.string.mapa_embarque_obs),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            obs,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                erroStatus?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+
+                Text(
+                    stringResource(R.string.mapa_embarque_alterar_status),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                SeletorStatusEmbarque(
+                    atual = opcaoAtual,
+                    opcoes = opcoesStatus.filter { it.permitido || it.id == statusLocal },
+                    bloqueado = bloqueado || enviando,
+                    carregando = enviando,
+                    aoEscolher = ::escolherStatus,
+                )
+            }
+        }
+    }
+
+    if (dialogoMotivo) {
+        AlertDialog(
+            onDismissRequest = { if (!enviando) dialogoMotivo = false },
+            title = { Text(stringResource(R.string.checkin_motivo_titulo)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when {
+                        carregandoMotivos -> CircularProgressIndicator(strokeWidth = 2.dp)
+                        motivos == null -> Text(
+                            stringResource(R.string.checkin_motivo_erro),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        else -> {
+                            MenuSimplesEmbarque(
+                                rotulo = motivos!!.categorias.firstOrNull { it.id == categoriaId }?.nome
+                                    ?: stringResource(R.string.checkin_categoria),
+                                opcoes = motivos!!.categorias.map { it.id to (it.nome ?: "#${it.id}") },
+                                aoEscolher = { categoriaId = it; motivoId = null },
+                            )
+                            val filtrados = motivos!!.motivos.filter {
+                                categoriaId == null || it.categoria_id == categoriaId
+                            }
+                            MenuSimplesEmbarque(
+                                rotulo = filtrados.firstOrNull { it.mot_id == motivoId }?.mot_nome
+                                    ?: stringResource(R.string.checkin_motivo),
+                                opcoes = filtrados.map { it.mot_id to (it.mot_nome ?: "#${it.mot_id}") },
+                                aoEscolher = { motivoId = it },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { motivoId?.let { gravarStatus(STATUS_NO_SHOW, motivo = it) } },
+                    enabled = motivoId != null && !enviando,
+                ) { Text(stringResource(R.string.confirmar)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogoMotivo = false }, enabled = !enviando) {
+                    Text(stringResource(R.string.cancelar))
+                }
+            },
+        )
+    }
+
+    if (dialogoParcial) {
+        val invalido = listOf(
+            (adulto.toIntOrNull() ?: 0) to reserva.adt,
+            (chd.toIntOrNull() ?: 0) to reserva.chd,
+            (infantil.toIntOrNull() ?: 0) to reserva.inf,
+            (jovem.toIntOrNull() ?: 0) to reserva.jovem,
+            (idoso.toIntOrNull() ?: 0) to reserva.idoso,
+        ).any { it.first > it.second }
+
+        AlertDialog(
+            onDismissRequest = { if (!enviando) dialogoParcial = false },
+            title = { Text(stringResource(R.string.checkin_parcial_titulo)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(
+                        Triple("ADT", reserva.adt, adulto to { v: String -> adulto = v }),
+                        Triple("CHD", reserva.chd, chd to { v: String -> chd = v }),
+                        Triple("INF", reserva.inf, infantil to { v: String -> infantil = v }),
+                        Triple("Jovem", reserva.jovem, jovem to { v: String -> jovem = v }),
+                        Triple("Idoso", reserva.idoso, idoso to { v: String -> idoso = v }),
+                    ).filter { it.second > 0 }.forEach { (rotulo, reservado, campo) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(rotulo, modifier = Modifier.weight(1f))
+                            Text("$reservado", modifier = Modifier.padding(end = 8.dp))
+                            OutlinedTextField(
+                                value = campo.first,
+                                onValueChange = campo.second,
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(80.dp),
+                            )
+                        }
+                    }
+                    if (invalido) {
+                        Text(
+                            stringResource(R.string.checkin_parcial_invalido),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !invalido && !enviando,
+                    onClick = {
+                        gravarStatus(
+                            STATUS_PARCIAL,
+                            parcial = mapOf(
+                                "adulto" to (adulto.toIntOrNull() ?: 0),
+                                "chd" to (chd.toIntOrNull() ?: 0),
+                                "infantil" to (infantil.toIntOrNull() ?: 0),
+                                "jovem" to (jovem.toIntOrNull() ?: 0),
+                                "idoso" to (idoso.toIntOrNull() ?: 0),
+                            ),
+                        )
+                    },
+                ) { Text(stringResource(R.string.confirmar)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogoParcial = false }, enabled = !enviando) {
+                    Text(stringResource(R.string.cancelar))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SeletorStatusEmbarque(
+    atual: OpcaoStatusEmbarque,
+    opcoes: List<OpcaoStatusEmbarque>,
+    bloqueado: Boolean,
+    carregando: Boolean = false,
+    aoEscolher: (Int) -> Unit,
+) {
+    var menuAberto by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(atual.corAtiva)
+                .clickable(enabled = !bloqueado && !carregando) { menuAberto = true }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = atual.rotulo,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            if (carregando) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White,
+                )
+            } else {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White)
+            }
+        }
+        DropdownMenu(expanded = menuAberto, onDismissRequest = { menuAberto = false }) {
+            opcoes.forEach { op ->
+                DropdownMenuItem(
+                    text = { Text(op.rotulo, fontWeight = FontWeight.SemiBold) },
+                    enabled = op.permitido,
+                    onClick = {
+                        menuAberto = false
+                        if (op.permitido) aoEscolher(op.id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuSimplesEmbarque(
+    rotulo: String,
+    opcoes: List<Pair<Int, String>>,
+    aoEscolher: (Int) -> Unit,
+) {
+    var menuAberto by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                .clickable(enabled = opcoes.isNotEmpty()) { menuAberto = true }
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(rotulo, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = menuAberto, onDismissRequest = { menuAberto = false }) {
+            opcoes.forEach { (id, nome) ->
+                DropdownMenuItem(
+                    text = { Text(nome) },
+                    onClick = {
+                        menuAberto = false
+                        aoEscolher(id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private enum class SituacaoFinanceira { RECEBIDO, PARCIAL, ABERTO }
+
+/** Igual a `situacaoFinanceira` do web: cor do card = dinheiro, não status. */
+private fun situacaoFinanceira(aReceber: Double, recebido: Double): SituacaoFinanceira {
+    val alvo = aReceber
+    if (alvo <= 0.005 || recebido >= alvo - 0.005) return SituacaoFinanceira.RECEBIDO
+    if (recebido > 0.005) return SituacaoFinanceira.PARCIAL
+    return SituacaoFinanceira.ABERTO
+}
+
+private fun coresSeloStatus(statusId: Int?): Triple<Color, Color, Color> = when (statusId) {
+    STATUS_CHECK_IN -> Triple(Color(0xFFD1FAE5), Color(0xFF047857), Color(0xFF6EE7B7))
+    STATUS_PARCIAL -> Triple(Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFCD34D))
+    STATUS_NO_SHOW -> Triple(Color(0xFFFCE7EB), Color(0xFFDA4553), Color(0xFFF5A3AB))
+    STATUS_RESERVADO -> Triple(Color(0xFFDBEAFE), Color(0xFF1D4ED8), Color(0xFF93C5FD))
+    else -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), Color(0xFFCBD5E1))
+}
+
+private fun bandeiraIdioma(idioma: String?): String {
+    if (idioma.isNullOrBlank()) return ""
+    val chave = idioma.trim().uppercase(Locale.US).take(2)
+    return when (chave) {
+        "PT", "BR" -> "🇧🇷"
+        "EN" -> "🇺🇸"
+        "ES" -> "🇪🇸"
+        "FR" -> "🇫🇷"
+        "IT" -> "🇮🇹"
+        "DE" -> "🇩🇪"
+        else -> "🏳️"
+    }
+}
+
+private fun digitosTelefone(telefone: String): String =
+    telefone.filter { it.isDigit() }
+
+private fun linkWhatsapp(telefone: String): String? {
+    val numero = digitosTelefone(telefone)
+    if (numero.length < 10) return null
+    val internacional = telefone.trim().startsWith("+") || numero.length > 11
+    return "https://wa.me/${if (internacional) numero else "55$numero"}"
+}
+
+private fun linkLigacao(telefone: String): String? {
+    val numero = digitosTelefone(telefone)
+    if (numero.length < 8) return null
+    val prefixo = if (telefone.trim().startsWith("+")) "+" else ""
+    return "tel:$prefixo$numero"
 }
 
 @Composable
@@ -757,13 +2003,26 @@ private fun SecaoExpansivel(
                 titulo,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Icon(
-                if (aberta) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = null,
-            )
+            // Igual ao web: círculo primary; fechada →; aberta ↓
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(if (aberta) 0f else -90f),
+                )
+            }
         }
         if (aberta) {
             Box(

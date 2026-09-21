@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -301,7 +300,6 @@ fun TelaEmbarque(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .padding(horizontal = 12.dp)
                     .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -337,7 +335,6 @@ fun TelaEmbarque(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
                     .padding(horizontal = 12.dp)
                     .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -377,7 +374,6 @@ fun TelaEmbarque(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 12.dp)
                             .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
@@ -527,7 +523,6 @@ private fun EstadoEmbarque(conteudo: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .padding(horizontal = 16.dp)
             .padding(bottom = ESPACO_DA_BARRA),
         contentAlignment = Alignment.Center,

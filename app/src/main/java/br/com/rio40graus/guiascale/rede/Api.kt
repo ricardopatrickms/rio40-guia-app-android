@@ -11,8 +11,10 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
@@ -25,11 +27,51 @@ import java.util.concurrent.TimeUnit
  */
 data class PedidoLogin(val login: String, val senha: String)
 
+/**
+ * Login e `GET guia/me` devolvem o mesmo envelope de perfil.
+ * O nome do guia vem em `guia.nome` / `user.user_metadata.nome` — igual ao web.
+ */
 data class RespostaLogin(
     val access_token: String?,
     val token_type: String?,
     val expires_in: Int?,
+    val user: UsuarioLogin? = null,
+    val guia: GuiaPerfil? = null,
 )
+
+data class RespostaMe(
+    val user: UsuarioLogin? = null,
+    val guia: GuiaPerfil? = null,
+)
+
+data class UsuarioLogin(
+    val id: String? = null,
+    val email: String? = null,
+    val user_metadata: UsuarioMeta? = null,
+)
+
+data class UsuarioMeta(
+    val nome: String? = null,
+    val foto: String? = null,
+)
+
+data class GuiaPerfil(
+    val id: String? = null,
+    val nome: String? = null,
+    val status: String? = null,
+    val parceiro_id: Int? = null,
+)
+
+/** Nome de exibição: o mesmo critério do web (pessoa.pes_nome). */
+fun nomeDoGuia(user: UsuarioLogin?, guia: GuiaPerfil?): String? =
+    guia?.nome?.takeIf { it.isNotBlank() }
+        ?: user?.user_metadata?.nome?.takeIf { it.isNotBlank() }
+
+/** `usuarios.usu_id` — login e /me devolvem como string em user.id / guia.id. */
+fun usuIdDoGuia(user: UsuarioLogin?, guia: GuiaPerfil?): Int? =
+    user?.id?.toIntOrNull()
+        ?: guia?.id?.toIntOrNull()
+
 
 /**
  * Uma leitura, no formato que a guias-api espera.
@@ -286,6 +328,16 @@ data class ItemPagamento(
     val pag_id: Int? = null,
 )
 
+/** Lançamento de pagamento AO FORNECEDOR (acerto). */
+data class PedidoPagamentosFornecedor(val pagamentos: List<ItemPagamentoFornecedor>)
+
+data class ItemPagamentoFornecedor(
+    val forma_id: Int,
+    val valor: Double,
+    val parcela_id: Int? = null,
+    val id: Int? = null,
+)
+
 data class CategoriaMotivo(val id: Int, val nome: String?)
 
 data class MotivoStatus(
@@ -312,6 +364,9 @@ interface ApiGuias {
 
     @POST("guia/login")
     suspend fun login(@Body credenciais: PedidoLogin): RespostaLogin
+
+    @GET("guia/me")
+    suspend fun me(): RespostaMe
 
     @POST("guia/posicoes")
     suspend fun enviarPosicoes(@Body lote: LotePosicoes): RespostaLote
@@ -365,6 +420,12 @@ interface ApiGuias {
         @Body corpo: PedidoIdioma,
     ): Response<Unit>
 
+    @POST("guia/fornecedor/{acertoFornecedorId}/pagamentos")
+    suspend fun salvarPagamentosFornecedor(
+        @Path("acertoFornecedorId") acertoFornecedorId: Int,
+        @Body corpo: PedidoPagamentosFornecedor,
+    ): Response<Unit>
+
     @GET("guia/mapa/{mapaId}/ocorrencias")
     suspend fun listarOcorrencias(@Path("mapaId") mapaId: Int): RespostaOcorrencias
 
@@ -373,6 +434,15 @@ interface ApiGuias {
         @Path("mapaId") mapaId: Int,
         @Body corpo: PedidoOcorrencia,
     ): Response<Unit>
+
+    @PUT("guia/ocorrencia/{id}")
+    suspend fun editarOcorrencia(
+        @Path("id") id: Int,
+        @Body corpo: PedidoOcorrencia,
+    ): Response<Unit>
+
+    @DELETE("guia/ocorrencia/{id}")
+    suspend fun excluirOcorrencia(@Path("id") id: Int): Response<Unit>
 }
 
 /**

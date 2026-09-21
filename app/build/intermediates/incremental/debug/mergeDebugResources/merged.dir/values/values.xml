@@ -196,6 +196,7 @@
     <string name="common_signin_button_text_long">Sign in with Google</string>
     <string name="confirmar">Confirmar</string>
     <string name="conta_conectado_como">Conectado como</string>
+    <string name="conta_sair_sistema">Sair do sistema</string>
     <string name="conta_sem_nome">Guia</string>
     <string name="default_error_message">"Invalid input"</string>
     <string name="default_popup_window_title" ns2:ignore="ExtraTranslation">"Pop-Up Window"</string>
@@ -310,43 +311,86 @@
     <string name="m3c_time_picker_pm">PM</string>
     <string name="m3c_tooltip_long_press_label">Show tooltip</string>
     <string name="m3c_tooltip_pane_description">Tooltip</string>
+    <string name="mapa_embarque_a_receber_rotulo">A RECEBER:</string>
     <string name="mapa_embarque_acerto">Acerto confirmado — mapa somente leitura.</string>
     <string name="mapa_embarque_adultos">ADULTOS:</string>
+    <string name="mapa_embarque_alterar_status">Alterar status</string>
     <string name="mapa_embarque_apoio">Apoio</string>
+    <string name="mapa_embarque_apto">APTO:</string>
+    <string name="mapa_embarque_atividade">ATIVIDADE:</string>
+    <string name="mapa_embarque_capacidade">CAPACIDADE:</string>
     <string name="mapa_embarque_carro">CARRO MODELO</string>
+    <string name="mapa_embarque_carro_rotulo">CARRO MODELO:</string>
     <string name="mapa_embarque_chd">CHD\'s:</string>
     <string name="mapa_embarque_checkin_editar">Check-in / editar</string>
-    <string name="mapa_embarque_data_rotulo">DATA: %1$s</string>
+    <string name="mapa_embarque_contato">CONTATO:</string>
+    <string name="mapa_embarque_data">DATA:</string>
+    <string name="mapa_embarque_editado_em"> (editado em %1$s)</string>
+    <string name="mapa_embarque_editar_ocorrencia">Editar ocorrência</string>
     <string name="mapa_embarque_em_andamento">Em andamento (%1$d)</string>
     <string name="mapa_embarque_embarques">EMBARQUES DO DIA</string>
+    <string name="mapa_embarque_empresa">EMPRESA:</string>
+    <string name="mapa_embarque_excluir_ocorrencia">Excluir ocorrência</string>
+    <string name="mapa_embarque_excluir_texto">O relato será removido permanentemente do histórico.</string>
+    <string name="mapa_embarque_excluir_titulo">Excluir esta ocorrência?</string>
     <string name="mapa_embarque_finalizados">Finalizados (%1$d)</string>
     <string name="mapa_embarque_fornecedores">FORNECEDORES</string>
-    <string name="mapa_embarque_guia">GUIA: %1$s</string>
+    <string name="mapa_embarque_guia">GUIA:</string>
     <string name="mapa_embarque_idoso">IDOSO:</string>
     <string name="mapa_embarque_inf">INF:</string>
+    <string name="mapa_embarque_informacoes">INFORMAÇÕES</string>
+    <string name="mapa_embarque_informar_pagamento">Informar pagamento</string>
     <string name="mapa_embarque_jovem">JOVEM:</string>
+    <string name="mapa_embarque_legenda_atraso">Atraso (previsto × check-in):</string>
+    <string name="mapa_embarque_ligar">Ligar</string>
     <string name="mapa_embarque_motorista">MOTORISTA</string>
-    <string name="mapa_embarque_nova_ocorrencia">Nova ocorrência</string>
+    <string name="mapa_embarque_motorista_rotulo">MOTORISTA:</string>
+    <string name="mapa_embarque_nome">NOME:</string>
+    <string name="mapa_embarque_obs">OBS:</string>
     <string name="mapa_embarque_ocorrencias">OCORRÊNCIAS</string>
     <string name="mapa_embarque_ocupacao">OCUPAÇÃO DO DIA:</string>
-    <string name="mapa_embarque_relato">Relato</string>
+    <string name="mapa_embarque_pacote">PACOTE:</string>
+    <string name="mapa_embarque_pax">✓ %1$d/%2$d</string>
+    <string name="mapa_embarque_placa">PLACA:</string>
+    <string name="mapa_embarque_qtd">QTD:</string>
+    <string name="mapa_embarque_qtd_pax">QTD PAX\'S:</string>
+    <string name="mapa_embarque_relato_placeholder">Escreva aqui os relatos do dia…</string>
+    <string name="mapa_embarque_resolvida">resolvida</string>
     <string name="mapa_embarque_saida">SAÍDA:</string>
     <string name="mapa_embarque_saldo_cash">SALDO EM CASH:</string>
     <string name="mapa_embarque_saldo_cash_hint">(saldo do movimento)</string>
     <string name="mapa_embarque_saldo_pagar">SALDO A PAGAR:</string>
     <string name="mapa_embarque_saldo_receber">SALDO A RECEBER:</string>
-    <string name="mapa_embarque_salvar_ocorrencia">Salvar</string>
+    <string name="mapa_embarque_salvando_relato">Salvando…</string>
+    <string name="mapa_embarque_salvar_relato">Salvar relato</string>
     <string name="mapa_embarque_sem_embarque">Nenhum ponto de embarque cadastrado.</string>
     <string name="mapa_embarque_sem_fornecedor">Nenhum fornecedor cadastrado.</string>
+    <string name="mapa_embarque_sem_info">Sem informações extras.</string>
     <string name="mapa_embarque_sem_mapa">Nenhum mapa nesta aba.</string>
     <string name="mapa_embarque_sem_ocorrencia">Nenhuma ocorrência registrada.</string>
     <string name="mapa_embarque_telefone">TELEFONE</string>
+    <string name="mapa_embarque_telefone_rotulo">TELEFONE:</string>
     <string name="mapa_embarque_titulo">Mapa de embarque</string>
+    <string name="mapa_embarque_total">TOTAL:</string>
     <string name="mapa_embarque_total_pago">TOTAL PAGO:</string>
     <string name="mapa_embarque_total_receber">TOTAL A RECEBER:</string>
     <string name="mapa_embarque_total_recebido">TOTAL RECEBIDO:</string>
     <string name="mapa_embarque_tour">TOUR</string>
     <string name="mapa_embarque_valor_pagar">VALOR TOTAL A PAGAR:</string>
+    <string name="mapa_embarque_ver_pagamentos">Ver pagamentos · pago %1$s</string>
+    <string name="mapa_embarque_ver_pagamentos_falta">Ver pagamentos · pago %1$s · falta %2$s</string>
+    <string name="mapa_embarque_whatsapp">WhatsApp</string>
+    <string name="mapa_pag_forn_adicionar">+ Adicionar</string>
+    <string name="mapa_pag_forn_excede">Excede %1$s</string>
+    <string name="mapa_pag_forn_falta">Falta %1$s</string>
+    <string name="mapa_pag_forn_formas">Formas de pagamento</string>
+    <string name="mapa_pag_forn_ok">OK</string>
+    <string name="mapa_pag_forn_salvar">Salvar</string>
+    <string name="mapa_pag_forn_sem_formas">Não foi possível carregar as formas de pagamento.</string>
+    <string name="mapa_pag_forn_soma">Soma: %1$s / Total %2$s</string>
+    <string name="mapa_pag_forn_titulo">Formas de pagamento — %1$s</string>
+    <string name="mapa_pag_forn_total">Total</string>
+    <string name="mapa_pag_forn_vazio">Nenhuma forma adicionada. Use \"+ Adicionar\" para registrar como o fornecedor foi pago.</string>
     <string name="navigation_menu">"Navigation menu"</string>
     <string name="not_selected">Not selected</string>
     <string name="parar_rastreio">Parar rastreio</string>
@@ -442,23 +486,14 @@
         <attr format="reference" name="fontProviderCerts"/>
         
         <attr name="fontProviderFetchStrategy">
-            <!-- The blocking font fetch works as follows.
-              First, check the local cache, then if the requested font is not cached, request the
-              font from the provider and wait until it is finished.  You can change the length of
-              the timeout by modifying fontProviderFetchTimeout.  If the timeout happens, the
-              default typeface will be used instead. -->
+            
             <enum name="blocking" value="0"/>
-            <!-- The async font fetch works as follows.
-              First, check the local cache, then if the requested font is not cached, trigger a
-              request the font and continue with layout inflation. Once the font fetch succeeds, the
-              target text view will be refreshed with the downloaded font data. The
-              fontProviderFetchTimeout will be ignored if async loading is specified. -->
+            
             <enum name="async" value="1"/>
         </attr>
         
         <attr format="integer" name="fontProviderFetchTimeout">
-            <!-- A special value for the timeout. In this case, the blocking font fetching will not
-              timeout and wait until a reply is received from the font provider. -->
+            
             <enum name="forever" value="-1"/>
         </attr>
         

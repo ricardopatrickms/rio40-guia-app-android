@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import android.widget.Toast
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
@@ -56,6 +58,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -88,6 +93,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -99,6 +105,7 @@ import br.com.rio40graus.guiascale.rastreio.RastreioService
 import br.com.rio40graus.guiascale.rede.FormaPagamento
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
+import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
@@ -107,12 +114,15 @@ import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
+import br.com.rio40graus.guiascale.rede.PedidoPagamentosFornecedor
 import br.com.rio40graus.guiascale.rede.PedidoStatus
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.Sessao
 import br.com.rio40graus.guiascale.rede.mensagemDeErro
+import br.com.rio40graus.guiascale.rede.nomeDoGuia
+import br.com.rio40graus.guiascale.rede.usuIdDoGuia
 import br.com.rio40graus.guiascale.ui.tema.CoresExtras
 import br.com.rio40graus.guiascale.ui.tema.FormaBotao
 import br.com.rio40graus.guiascale.ui.tema.FormaCampo
@@ -121,6 +131,9 @@ import br.com.rio40graus.guiascale.ui.tema.TemaGuiaScale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.coroutines.resume
 
 /**
@@ -167,6 +180,9 @@ class MainActivity : ComponentActivity() {
          */
         enableEdgeToEdge()
         Sessao.carregar(this)
+        if (Sessao.autenticado && Sessao.nome.isNullOrBlank()) {
+            atualizarPerfil()
+        }
 
         setContent {
             TemaGuiaScale {
@@ -185,6 +201,10 @@ class MainActivity : ComponentActivity() {
                         aoSalvarIdioma = ::salvarIdioma,
                         aoCarregarOcorrencias = ::carregarOcorrencias,
                         aoCriarOcorrencia = ::criarOcorrencia,
+                        aoEditarOcorrencia = ::editarOcorrencia,
+                        aoExcluirOcorrencia = ::excluirOcorrencia,
+                        aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
+                        aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { mapaId -> RastreioService.iniciar(this, mapaId) },
                         aoDesligar = { RastreioService.parar(this) },
@@ -204,11 +224,49 @@ class MainActivity : ComponentActivity() {
                 if (token.isNullOrBlank()) {
                     aoTerminar(getString(R.string.erro_login))
                 } else {
-                    Sessao.guardar(this@MainActivity, token, login)
+                    Sessao.guardar(
+                        this@MainActivity,
+                        token,
+                        login,
+                        nomeDoGuia(resposta.user, resposta.guia),
+                        usuIdDoGuia(resposta.user, resposta.guia),
+                    )
                     aoTerminar(null)
                 }
             } catch (erro: Exception) {
                 aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    /** Preenche o nome do guia quando a sessão antiga só tinha o login/e-mail. */
+    private fun atualizarPerfil() {
+        lifecycleScope.launch {
+            try {
+                val me = Rede.api.me()
+                Sessao.guardarPerfil(
+                    this@MainActivity,
+                    nomeDoGuia(me.user, me.guia),
+                    usuIdDoGuia(me.user, me.guia),
+                )
+            } catch (_: Exception) {
+                // Sem nome o app continua; só exibe o login.
+            }
+        }
+    }
+
+    private fun carregarNomeGuia(aoTerminar: (String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                val me = Rede.api.me()
+                Sessao.guardarPerfil(
+                    this@MainActivity,
+                    nomeDoGuia(me.user, me.guia),
+                    usuIdDoGuia(me.user, me.guia),
+                )
+                aoTerminar(Sessao.nomeExibicao)
+            } catch (_: Exception) {
+                aoTerminar(Sessao.nomeExibicao)
             }
         }
     }
@@ -374,6 +432,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun salvarPagamentoFornecedor(
+        acertoFornecedorId: Int,
+        itens: List<ItemPagamentoFornecedor>,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarPagamentosFornecedor(
+                    acertoFornecedorId,
+                    PedidoPagamentosFornecedor(itens),
+                )
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun salvarIdioma(
         reservaId: Int,
         idiomaId: Int,
@@ -414,6 +494,43 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val resposta = Rede.api.criarOcorrencia(mapaId, PedidoOcorrencia(relato))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun editarOcorrencia(
+        id: Int,
+        relato: String,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.editarOcorrencia(id, PedidoOcorrencia(relato))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun excluirOcorrencia(
+        id: Int,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.excluirOcorrencia(id)
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
                 } else {
@@ -502,6 +619,10 @@ private fun Tela(
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoCarregarOcorrencias: (Int, (List<OcorrenciaMapa>?, String?) -> Unit) -> Unit,
     aoCriarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
+    aoEditarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
+    aoExcluirOcorrencia: (Int, (String?) -> Unit) -> Unit,
+    aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
+    aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: (mapaId: Int?) -> Unit,
     aoDesligar: () -> Unit,
@@ -590,9 +711,24 @@ private fun Tela(
                 },
             )
         } else {
-            // Menu fixo no fluxo do layout: o conteúdo rola só na área de cima,
-            // sem passar por baixo do menu.
+            // Header no topo (como o web celular) + conteúdo + menu inferior.
+            // Conta: avatar à direita abre menu com Sair (igual ao web).
+            var nomeCabecalho by remember {
+                mutableStateOf(Sessao.nomeExibicao ?: "")
+            }
+            LaunchedEffect(Unit) {
+                aoCarregarNomeGuia { nome ->
+                    nomeCabecalho = nome?.takeIf { it.isNotBlank() }
+                        ?: Sessao.nomeExibicao
+                        ?: ""
+                }
+            }
+
             Column(modifier = Modifier.fillMaxSize()) {
+                CabecalhoTopo(
+                    nomeGuia = nomeCabecalho,
+                    aoPedirSaida = { confirmandoSaida = true },
+                )
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (aba) {
                         Aba.EMBARQUE -> TelaMapaEmbarque(
@@ -606,6 +742,10 @@ private fun Tela(
                             aoSalvarIdioma = aoSalvarIdioma,
                             aoCarregarOcorrencias = aoCarregarOcorrencias,
                             aoCriarOcorrencia = aoCriarOcorrencia,
+                            aoEditarOcorrencia = aoEditarOcorrencia,
+                            aoExcluirOcorrencia = aoExcluirOcorrencia,
+                            aoSalvarPagamentoFornecedor = aoSalvarPagamentoFornecedor,
+                            aoCarregarNomeGuia = aoCarregarNomeGuia,
                         )
 
                         Aba.CHECK_IN -> TelaEmbarque(
@@ -634,13 +774,7 @@ private fun Tela(
                             aoCarregarTrajeto = aoCarregarTrajeto,
                         )
 
-                        Aba.CONTA -> TelaConta(
-                            login = Sessao.login,
-                            saindo = saindo,
-                            aoPedirSaida = { confirmandoSaida = true },
-                        )
-
-                        else -> { /* abas desabilitadas não selecionam */ }
+                        else -> { /* abas desabilitadas / Conta no menu do avatar */ }
                     }
                 }
 
@@ -692,7 +826,8 @@ private fun Tela(
 }
 
 /**
- * Abas iguais ao BottomNav do web (Painel…Radar), mais Conta do app.
+ * Abas iguais ao BottomNav do web (Painel…Radar).
+ * Conta fica no avatar do header (menu com Sair), não neste menu.
  *
  * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
  * Painel, Check list e Radar ficam desabilitados por enquanto.
@@ -701,13 +836,14 @@ private enum class Aba(
     val rotulo: Int,
     val icone: ImageVector,
     val habilitada: Boolean,
+    val noMenuInferior: Boolean = true,
 ) {
     PAINEL(R.string.aba_painel, Icons.Filled.Speed, false),
     EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, true),
     CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, false),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
     RADAR(R.string.aba_radar, Icons.Filled.WbSunny, false),
-    CONTA(R.string.aba_conta, Icons.Filled.Person, true),
+    CONTA(R.string.aba_conta, Icons.Filled.Person, true, noMenuInferior = false),
 }
 
 /**
@@ -747,7 +883,7 @@ private fun NavInferior(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Aba.entries.forEach { item ->
+            Aba.entries.filter { it.noMenuInferior }.forEach { item ->
                 val ativo = item == atual && item.habilitada
                 val cor = when {
                     !item.habilitada -> corDesabilitada
@@ -804,72 +940,131 @@ private fun NavInferior(
 }
 
 /**
- * A aba Conta: quem está logado e a saída.
- *
- * Só isso, por enquanto. Nome, foto e ficha do guia existem em `guia/me` e
- * `guia/ficha`, mas o app ainda não os busca — e o que motiva esta tela é dar
- * um lugar ao botão de sair, que antes não existia em canto nenhum.
+ * Cabeçalho igual ao Header do web no celular.
+ * Sem hamburger. Avatar à direita abre o menu (nome, em breve, Sair).
  */
 @Composable
-private fun TelaConta(
-    login: String?,
-    saindo: Boolean,
+private fun CabecalhoTopo(
+    nomeGuia: String,
     aoPedirSaida: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-            .padding(bottom = ESPACO_DA_BARRA),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    val dataHoje = remember {
+        SimpleDateFormat("EEEE, d 'de' MMMM", Locale("pt", "BR")).format(Date())
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale("pt", "BR")) else it.toString() }
+    }
+    val nome = nomeGuia.ifBlank { Sessao.nomeExibicao ?: stringResource(R.string.conta_sem_nome) }
+    val iniciais = remember(nome) { iniciaisDoNome(nome.ifBlank { Sessao.login }) }
+    var menuAberto by remember { mutableStateOf(false) }
+
+    Surface(
+        color = Color.White,
+        shadowElevation = 0.dp,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Marca(tamanho = 40.dp)
-            Text(
-                text = stringResource(R.string.aba_conta),
-                style = MaterialTheme.typography.titleLarge,
-            )
-        }
-
-        Cartao {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+        Column(modifier = Modifier.statusBarsPadding()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.conta_conectado_como),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = login ?: stringResource(R.string.conta_sem_nome),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-        }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = dataHoje,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
 
-        OutlinedButton(
-            onClick = aoPedirSaida,
-            enabled = !saindo,
-            shape = FormaBotao,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-        ) {
-            Text(
-                text = stringResource(if (saindo) R.string.saindo else R.string.sair),
-                style = MaterialTheme.typography.labelLarge,
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { menuAberto = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = iniciais,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuAberto,
+                        onDismissRequest = { menuAberto = false },
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                                .widthIn(min = 200.dp),
+                        ) {
+                            Text(
+                                text = nome,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Sessao.login?.takeIf { it.isNotBlank() }?.let { email ->
+                                Text(
+                                    text = email,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.conta_sair_sistema),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.ExitToApp,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                menuAberto = false
+                                aoPedirSaida()
+                            },
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
             )
         }
+    }
+}
+
+private fun iniciaisDoNome(nome: String?): String {
+    if (nome.isNullOrBlank()) return "?"
+    val partes = nome.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    return when {
+        partes.size >= 2 ->
+            "${partes.first().first()}${partes.last().first()}".uppercase(Locale.getDefault())
+        else -> partes.first().take(2).uppercase(Locale.getDefault())
     }
 }
 
