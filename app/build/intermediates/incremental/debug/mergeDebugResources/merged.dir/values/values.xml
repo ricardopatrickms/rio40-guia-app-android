@@ -174,6 +174,13 @@
     <string name="checkin_total">Total</string>
     <string name="checkin_total_pax">Total: %1$d pax · quem não embarcou se informa no PARCIAL</string>
     <string name="checkin_valor">Valor</string>
+    <string name="checklist_concluidas">%1$d/%2$d concluídas</string>
+    <string name="checklist_passeio">Passeio</string>
+    <string name="checklist_selecione">Selecione</string>
+    <string name="checklist_sem_escala">Nenhuma escala para hoje.</string>
+    <string name="checklist_sem_tarefas">Nenhuma tarefa cadastrada para este passeio.</string>
+    <string name="checklist_titulo">Check list</string>
+    <string name="checklist_todos_fechados">Os embarques de hoje já foram fechados pelo financeiro. O check list deles está concluído.</string>
     <string name="close_drawer">"Close navigation menu"</string>
     <string name="close_sheet">"Close sheet"</string>
     <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Enable</string>

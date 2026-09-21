@@ -316,6 +316,13 @@ string checkin_titulo
 string checkin_total
 string checkin_total_pax
 string checkin_valor
+string checklist_concluidas
+string checklist_passeio
+string checklist_selecione
+string checklist_sem_escala
+string checklist_sem_tarefas
+string checklist_titulo
+string checklist_todos_fechados
 string close_drawer
 string close_sheet
 string common_google_play_services_enable_button

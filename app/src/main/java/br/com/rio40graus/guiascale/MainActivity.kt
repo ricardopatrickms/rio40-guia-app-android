@@ -116,10 +116,12 @@ import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoPagamentosFornecedor
 import br.com.rio40graus.guiascale.rede.PedidoStatus
+import br.com.rio40graus.guiascale.rede.PedidoChecklistFeito
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.Sessao
+import br.com.rio40graus.guiascale.rede.TarefaChecklist
 import br.com.rio40graus.guiascale.rede.mensagemDeErro
 import br.com.rio40graus.guiascale.rede.nomeDoGuia
 import br.com.rio40graus.guiascale.rede.usuIdDoGuia
@@ -203,6 +205,8 @@ class MainActivity : ComponentActivity() {
                         aoCriarOcorrencia = ::criarOcorrencia,
                         aoEditarOcorrencia = ::editarOcorrencia,
                         aoExcluirOcorrencia = ::excluirOcorrencia,
+                        aoCarregarChecklist = ::carregarChecklist,
+                        aoMarcarChecklist = ::marcarChecklist,
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
@@ -542,6 +546,48 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun carregarChecklist(
+        tourId: Int,
+        data: String,
+        mapaId: Int?,
+        aoTerminar: (List<TarefaChecklist>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(
+                    Rede.api.checklist(tourId = tourId, data = data, mapaId = mapaId).tarefas,
+                    null,
+                )
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun marcarChecklist(
+        tarefaId: String,
+        mapaId: Int,
+        data: String,
+        done: Boolean,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.marcarChecklist(
+                    tarefaId,
+                    PedidoChecklistFeito(mapa_id = mapaId, data = data, done = done),
+                )
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun pedirPermissoes() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pedirNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -621,6 +667,8 @@ private fun Tela(
     aoCriarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
     aoEditarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
     aoExcluirOcorrencia: (Int, (String?) -> Unit) -> Unit,
+    aoCarregarChecklist: (Int, String, Int?, (List<TarefaChecklist>?, String?) -> Unit) -> Unit,
+    aoMarcarChecklist: (String, Int, String, Boolean, (String?) -> Unit) -> Unit,
     aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
@@ -726,6 +774,12 @@ private fun Tela(
 
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
+                    titulo = when (aba) {
+                        Aba.CHECK_LIST -> stringResource(R.string.checklist_titulo)
+                        Aba.EMBARQUE -> stringResource(R.string.app_name)
+                        Aba.CHECK_IN -> stringResource(R.string.app_name)
+                        else -> stringResource(R.string.app_name)
+                    },
                     nomeGuia = nomeCabecalho,
                     aoPedirSaida = { confirmandoSaida = true },
                 )
@@ -746,6 +800,12 @@ private fun Tela(
                             aoExcluirOcorrencia = aoExcluirOcorrencia,
                             aoSalvarPagamentoFornecedor = aoSalvarPagamentoFornecedor,
                             aoCarregarNomeGuia = aoCarregarNomeGuia,
+                        )
+
+                        Aba.CHECK_LIST -> TelaCheckList(
+                            aoCarregarMapas = aoCarregarMapas,
+                            aoCarregarChecklist = aoCarregarChecklist,
+                            aoMarcarChecklist = aoMarcarChecklist,
                         )
 
                         Aba.CHECK_IN -> TelaEmbarque(
@@ -840,7 +900,7 @@ private enum class Aba(
 ) {
     PAINEL(R.string.aba_painel, Icons.Filled.Speed, false),
     EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, true),
-    CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, false),
+    CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, true),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
     RADAR(R.string.aba_radar, Icons.Filled.WbSunny, false),
     CONTA(R.string.aba_conta, Icons.Filled.Person, true, noMenuInferior = false),
@@ -945,6 +1005,7 @@ private fun NavInferior(
  */
 @Composable
 private fun CabecalhoTopo(
+    titulo: String,
     nomeGuia: String,
     aoPedirSaida: () -> Unit,
 ) {
@@ -971,7 +1032,7 @@ private fun CabecalhoTopo(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.app_name),
+                        text = titulo,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,

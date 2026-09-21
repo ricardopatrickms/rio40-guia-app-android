@@ -443,7 +443,39 @@ interface ApiGuias {
 
     @DELETE("guia/ocorrencia/{id}")
     suspend fun excluirOcorrencia(@Path("id") id: Int): Response<Unit>
+
+    @GET("guia/checklist")
+    suspend fun checklist(
+        @Query("tour_id") tourId: Int,
+        @Query("data") data: String,
+        @Query("mapa_id") mapaId: Int? = null,
+    ): RespostaChecklist
+
+    @POST("guia/checklist/{tarefaId}/feito")
+    suspend fun marcarChecklist(
+        @Path("tarefaId") tarefaId: String,
+        @Body corpo: PedidoChecklistFeito,
+    ): Response<Unit>
 }
+
+data class RespostaChecklist(
+    val tarefas: List<TarefaChecklist> = emptyList(),
+)
+
+data class TarefaChecklist(
+    val id: String,
+    val title: String?,
+    val order_index: Int = 0,
+    val tours: List<Int> = emptyList(),
+    val done: Boolean = false,
+    val legado: Boolean = false,
+)
+
+data class PedidoChecklistFeito(
+    val mapa_id: Int,
+    val data: String,
+    val done: Boolean,
+)
 
 /**
  * O cliente HTTP do app.
