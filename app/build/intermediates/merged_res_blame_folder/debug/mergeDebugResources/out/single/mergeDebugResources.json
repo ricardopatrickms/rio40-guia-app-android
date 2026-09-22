@@ -1,26 +1,94 @@
 [
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_scale.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_scale.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_shield_alert.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_shield_alert.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/font_inter.ttf.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/font/inter.ttf"
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/xml_rede_debug.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-debug-65:/xml/rede_debug.xml"
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_book_open.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_book_open.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_launcher_foreground.xml"
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_id_card.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_id_card.xml"
     },
     {
-        "merged": "br.com.rio40graus.guiascale.app-debug-64:/font_dm_sans.ttf.flat",
-        "source": "br.com.rio40graus.guiascale.app-main-66:/font/dm_sans.ttf"
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/xml_rede_debug.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-65:/xml/rede_debug.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_file_text.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_file_text.xml"
+    },
+    {
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_calendar_clock.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_calendar_clock.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_award.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_award.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_gavel.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_gavel.xml"
+    },
+    {
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_map_pinned.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_map_pinned.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/font_dm_sans.ttf.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/font/dm_sans.ttf"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_layout_grid.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_layout_grid.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_graduation_cap.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_graduation_cap.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_help_circle.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_help_circle.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_x_circle.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_x_circle.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_building_2.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_building_2.xml"
+    },
+    {
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_briefcase.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_briefcase.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/font_inter.ttf.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/font/inter.ttf"
+    },
+    {
+        "merged": "br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_calendar_range.xml.flat",
+        "source": "br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_calendar_range.xml"
+    },
+    {
+        "merged": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-debug-64:/drawable_ic_lucide_map_pin.xml.flat",
+        "source": "/home/construtor/.gradle/daemon/8.11.1/br.com.rio40graus.guiascale.app-main-66:/drawable/ic_lucide_map_pin.xml"
     }
 ]

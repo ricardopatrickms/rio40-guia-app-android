@@ -456,6 +456,48 @@ interface ApiGuias {
         @Path("tarefaId") tarefaId: String,
         @Body corpo: PedidoChecklistFeito,
     ): Response<Unit>
+
+    @GET("guia/painel")
+    suspend fun painel(@Query("periodo") periodo: String): KpisDoPainel
+
+    @GET("guia/passeios-guia")
+    suspend fun passeiosGuia(@Query("periodo") periodo: String): PasseiosDoGuia
+
+    @GET("guia/agenda")
+    suspend fun agenda(
+        @Query("de") de: String,
+        @Query("ate") ate: String,
+    ): AgendaDoGuia
+
+    @GET("guia/ficha")
+    suspend fun ficha(): FichaGuia
+
+    @GET("guia/lei-progresso")
+    suspend fun leiProgresso(): ProgressoDaLei
+
+    @POST("guia/lei-progresso")
+    suspend fun salvarLeiProgresso(@Body corpo: ProgressoDaLei): Response<Unit>
+
+    @GET("guia/disponibilidade")
+    suspend fun listarBloqueios(@Query("from") from: String? = null): RespostaBloqueios
+
+    @POST("guia/disponibilidade")
+    suspend fun criarBloqueios(@Body corpo: PedidoBloqueios): RespostaBloqueios
+
+    @POST("guia/disponibilidade/remover")
+    suspend fun removerBloqueios(@Body corpo: PedidoRemoverBloqueios): Response<Unit>
+
+    @GET("guia/disponibilidade/dias-semana")
+    suspend fun diasSemana(): DiasSemanaGuia
+
+    @GET("guia/disponibilidade/dias-ocupados")
+    suspend fun diasOcupados(@Query("from") from: String? = null): RespostaDiasOcupados
+
+    @GET("guia/solicitacoes-trabalho")
+    suspend fun listarSolicitacoes(@Query("from") from: String? = null): RespostaSolicitacoes
+
+    @POST("guia/solicitacoes-trabalho")
+    suspend fun criarSolicitacoes(@Body corpo: PedidoSolicitacoes): RespostaSolicitacoes
 }
 
 data class RespostaChecklist(
@@ -475,6 +517,181 @@ data class PedidoChecklistFeito(
     val mapa_id: Int,
     val data: String,
     val done: Boolean,
+)
+
+data class KpisDoPainel(
+    val periodo: PeriodoPainel? = null,
+    val diasTrabalhados: Int = 0,
+    val passeiosRealizados: Int = 0,
+    val passeiosLista: List<PasseioListaItem> = emptyList(),
+    val totalServicos: Int = 0,
+    val passeiosDistintos: Int = 0,
+    val agendamentos: Int = 0,
+    val ultimos7dias: List<ItemAgenda> = emptyList(),
+    val proximos: List<ItemAgenda> = emptyList(),
+    val receita: Double = 0.0,
+    val evolucao: List<EvolucaoMes> = emptyList(),
+    val transportes: List<TransporteRanking> = emptyList(),
+    val passeiosRanking: List<PasseioRanking> = emptyList(),
+    val aniversario: String? = null,
+)
+
+data class PeriodoPainel(val de: String? = null, val ate: String? = null)
+
+data class PasseioListaItem(
+    val id: String? = null,
+    val date: String? = null,
+    val tour_name: String? = null,
+    val start_time: String? = null,
+    val transport: String? = null,
+    val company: String? = null,
+    val status: String? = null,
+)
+
+data class ItemAgenda(
+    val id: String? = null,
+    val date: String? = null,
+    val tour_name: String? = null,
+    val start_time: String? = null,
+    val transport: String? = null,
+    val company: String? = null,
+    val pax: Int = 0,
+    val status: String? = null,
+)
+
+data class EvolucaoMes(
+    val mes: String? = null,
+    val diasTrabalhados: Int = 0,
+    val passeios: Int = 0,
+    val receita: Double = 0.0,
+)
+
+data class TransporteRanking(
+    val nome: String? = null,
+    val quantidade: Int = 0,
+    val percentual: Double = 0.0,
+)
+
+data class PasseioRanking(
+    val nome: String? = null,
+    val qty: Int = 0,
+)
+
+data class PasseiosDoGuia(
+    val periodo: PeriodoPainel? = null,
+    val comparativo: List<ComparativoPasseio> = emptyList(),
+    val detalhamento: List<DetalhePasseio> = emptyList(),
+)
+
+data class ComparativoPasseio(
+    val nome: String? = null,
+    val atual: Int = 0,
+    val anterior: Int = 0,
+)
+
+data class DetalhePasseio(
+    val nome: String? = null,
+    val qty: Int = 0,
+    val pax: Int = 0,
+    val receita: Double = 0.0,
+    val avaliacao: Double? = null,
+)
+
+data class AgendaDoGuia(
+    val periodo: PeriodoPainel? = null,
+    val itens: List<ItemAgenda> = emptyList(),
+)
+
+data class FichaGuia(
+    val guide: GuiaFichaDados? = null,
+    val estatisticas: GuiaFichaStats? = null,
+    val especialidades: List<EspecialidadeGuia> = emptyList(),
+)
+
+data class GuiaFichaDados(
+    val usu_id: Int? = null,
+    val name: String? = null,
+    val photo_url: String? = null,
+    val cadastur: String? = null,
+    val whatsapp: String? = null,
+    val email: String? = null,
+    val data_entrada: String? = null,
+    val level: String? = null,
+    val status: String? = null,
+    val observacoes: String? = null,
+)
+
+data class GuiaFichaStats(
+    val anosEmpresa: Int = 0,
+    val tempoEmpresa: String? = null,
+    val totalPasseios: Int = 0,
+    val nivel: String? = null,
+    val ocorrenciasAno: Int = 0,
+    val avaliacaoMedia: Double? = null,
+    val pontualidadePct: Double? = null,
+)
+
+data class EspecialidadeGuia(
+    val destino: String? = null,
+    val nivel: Int = 0,
+)
+
+data class ProgressoDaLei(
+    val open_ids: List<String> = emptyList(),
+    val last_section: String? = null,
+)
+
+data class RespostaBloqueios(
+    val bloqueios: List<BloqueioGuia> = emptyList(),
+)
+
+data class BloqueioGuia(
+    val id: String? = null,
+    val guide_id: String? = null,
+    val usu_id: Int = 0,
+    val date: String,
+    val status: String? = null,
+    val reason: String? = null,
+    val source: String? = null,
+)
+
+data class PedidoBloqueios(
+    val dates: List<String>,
+    val reason: String? = null,
+    val source: String = "app-guia",
+)
+
+data class PedidoRemoverBloqueios(
+    val dates: List<String>,
+)
+
+data class DiasSemanaGuia(
+    val dias: List<Int> = emptyList(),
+    val restrito: Boolean = false,
+)
+
+data class RespostaDiasOcupados(
+    val dias: List<String> = emptyList(),
+)
+
+data class RespostaSolicitacoes(
+    val solicitacoes: List<SolicitacaoTrabalho> = emptyList(),
+)
+
+data class SolicitacaoTrabalho(
+    val id: String? = null,
+    val usu_id: Int = 0,
+    val date: String,
+    val reason: String? = null,
+    val source: String? = null,
+    val situacao: String? = null,
+    val motivo_decisao: String? = null,
+)
+
+data class PedidoSolicitacoes(
+    val dates: List<String>,
+    val reason: String? = null,
+    val source: String = "app-guia",
 )
 
 /**

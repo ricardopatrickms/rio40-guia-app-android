@@ -102,25 +102,36 @@ import br.com.rio40graus.guiascale.dados.BancoLocal
 import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.rastreio.EstadoRastreio
 import br.com.rio40graus.guiascale.rastreio.RastreioService
+import br.com.rio40graus.guiascale.rede.AgendaDoGuia
+import br.com.rio40graus.guiascale.rede.BloqueioGuia
+import br.com.rio40graus.guiascale.rede.DiasSemanaGuia
+import br.com.rio40graus.guiascale.rede.FichaGuia
 import br.com.rio40graus.guiascale.rede.FormaPagamento
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
+import br.com.rio40graus.guiascale.rede.KpisDoPainel
 import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
+import br.com.rio40graus.guiascale.rede.PasseiosDoGuia
+import br.com.rio40graus.guiascale.rede.PedidoBloqueios
 import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoPagamentosFornecedor
+import br.com.rio40graus.guiascale.rede.PedidoRemoverBloqueios
+import br.com.rio40graus.guiascale.rede.PedidoSolicitacoes
 import br.com.rio40graus.guiascale.rede.PedidoStatus
 import br.com.rio40graus.guiascale.rede.PedidoChecklistFeito
+import br.com.rio40graus.guiascale.rede.ProgressoDaLei
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.Sessao
+import br.com.rio40graus.guiascale.rede.SolicitacaoTrabalho
 import br.com.rio40graus.guiascale.rede.TarefaChecklist
 import br.com.rio40graus.guiascale.rede.mensagemDeErro
 import br.com.rio40graus.guiascale.rede.nomeDoGuia
@@ -207,6 +218,19 @@ class MainActivity : ComponentActivity() {
                         aoExcluirOcorrencia = ::excluirOcorrencia,
                         aoCarregarChecklist = ::carregarChecklist,
                         aoMarcarChecklist = ::marcarChecklist,
+                        aoCarregarPainel = ::carregarPainel,
+                        aoCarregarPasseiosGuia = ::carregarPasseiosGuia,
+                        aoCarregarAgenda = ::carregarAgenda,
+                        aoCarregarFicha = ::carregarFicha,
+                        aoCarregarLei = ::carregarLei,
+                        aoSalvarLei = ::salvarLei,
+                        aoCarregarBloqueios = ::carregarBloqueios,
+                        aoCarregarDiasSemana = ::carregarDiasSemana,
+                        aoCarregarDiasOcupados = ::carregarDiasOcupados,
+                        aoSalvarBloqueios = ::salvarBloqueios,
+                        aoRemoverBloqueios = ::removerBloqueios,
+                        aoCarregarSolicitacoes = ::carregarSolicitacoes,
+                        aoCriarSolicitacoes = ::criarSolicitacoes,
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
@@ -588,6 +612,159 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun carregarPainel(periodo: String, aoTerminar: (KpisDoPainel?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.painel(periodo), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarPasseiosGuia(periodo: String, aoTerminar: (PasseiosDoGuia?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.passeiosGuia(periodo), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarAgenda(de: String, ate: String, aoTerminar: (AgendaDoGuia?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.agenda(de, ate), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarFicha(aoTerminar: (FichaGuia?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.ficha(), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarLei(aoTerminar: (ProgressoDaLei?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.leiProgresso(), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarLei(dados: ProgressoDaLei, aoTerminar: (Boolean) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                Rede.api.salvarLeiProgresso(dados)
+                aoTerminar(true)
+            } catch (_: Exception) {
+                aoTerminar(false)
+            }
+        }
+    }
+
+    private fun carregarBloqueios(from: String?, aoTerminar: (List<BloqueioGuia>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.listarBloqueios(from).bloqueios, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarDiasSemana(aoTerminar: (DiasSemanaGuia?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.diasSemana(), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarDiasOcupados(from: String?, aoTerminar: (List<String>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.diasOcupados(from).dias, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarBloqueios(
+        datas: List<String>,
+        motivo: String?,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                Rede.api.criarBloqueios(
+                    PedidoBloqueios(dates = datas, reason = motivo, source = "app-guia"),
+                )
+                aoTerminar(null)
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun removerBloqueios(datas: List<String>, aoTerminar: (String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.removerBloqueios(PedidoRemoverBloqueios(dates = datas))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarSolicitacoes(
+        from: String?,
+        aoTerminar: (List<SolicitacaoTrabalho>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.listarSolicitacoes(from).solicitacoes, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun criarSolicitacoes(
+        datas: List<String>,
+        motivo: String?,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                Rede.api.criarSolicitacoes(
+                    PedidoSolicitacoes(dates = datas, reason = motivo, source = "app-guia"),
+                )
+                aoTerminar(null)
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun pedirPermissoes() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pedirNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -669,6 +846,19 @@ private fun Tela(
     aoExcluirOcorrencia: (Int, (String?) -> Unit) -> Unit,
     aoCarregarChecklist: (Int, String, Int?, (List<TarefaChecklist>?, String?) -> Unit) -> Unit,
     aoMarcarChecklist: (String, Int, String, Boolean, (String?) -> Unit) -> Unit,
+    aoCarregarPainel: (String, (KpisDoPainel?, String?) -> Unit) -> Unit,
+    aoCarregarPasseiosGuia: (String, (PasseiosDoGuia?, String?) -> Unit) -> Unit,
+    aoCarregarAgenda: (String, String, (AgendaDoGuia?, String?) -> Unit) -> Unit,
+    aoCarregarFicha: ((FichaGuia?, String?) -> Unit) -> Unit,
+    aoCarregarLei: ((ProgressoDaLei?, String?) -> Unit) -> Unit,
+    aoSalvarLei: (ProgressoDaLei, (Boolean) -> Unit) -> Unit,
+    aoCarregarBloqueios: (String?, (List<BloqueioGuia>?, String?) -> Unit) -> Unit,
+    aoCarregarDiasSemana: ((DiasSemanaGuia?, String?) -> Unit) -> Unit,
+    aoCarregarDiasOcupados: (String?, (List<String>?, String?) -> Unit) -> Unit,
+    aoSalvarBloqueios: (List<String>, String?, (String?) -> Unit) -> Unit,
+    aoRemoverBloqueios: (List<String>, (String?) -> Unit) -> Unit,
+    aoCarregarSolicitacoes: (String?, (List<SolicitacaoTrabalho>?, String?) -> Unit) -> Unit,
+    aoCriarSolicitacoes: (List<String>, String?, (String?) -> Unit) -> Unit,
     aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
@@ -684,7 +874,7 @@ private fun Tela(
     var entrando by remember { mutableStateOf(false) }
     var erro by remember { mutableStateOf<String?>(null) }
 
-    var aba by remember { mutableStateOf(Aba.CHECK_IN) }
+    var aba by remember { mutableStateOf(Aba.PAINEL) }
     // Onde o guia está agora, e por onde já passou. Os dois vão para a tela de
     // embarque: a posição vira a distância até o próximo ponto, o trajeto vira
     // a linha azul no mapa (filtrada por mapa na TelaEmbarque).
@@ -775,6 +965,7 @@ private fun Tela(
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
                     titulo = when (aba) {
+                        Aba.PAINEL -> stringResource(R.string.app_name)
                         Aba.CHECK_LIST -> stringResource(R.string.checklist_titulo)
                         Aba.EMBARQUE -> stringResource(R.string.app_name)
                         Aba.CHECK_IN -> stringResource(R.string.app_name)
@@ -785,6 +976,23 @@ private fun Tela(
                 )
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (aba) {
+                        Aba.PAINEL -> TelaPainel(
+                            aoCarregarPainel = aoCarregarPainel,
+                            aoCarregarPasseios = aoCarregarPasseiosGuia,
+                            aoCarregarAgenda = aoCarregarAgenda,
+                            aoCarregarFicha = aoCarregarFicha,
+                            aoCarregarLei = aoCarregarLei,
+                            aoSalvarLei = aoSalvarLei,
+                            aoCarregarBloqueios = aoCarregarBloqueios,
+                            aoCarregarDiasSemana = aoCarregarDiasSemana,
+                            aoCarregarDiasOcupados = aoCarregarDiasOcupados,
+                            aoSalvarBloqueios = aoSalvarBloqueios,
+                            aoRemoverBloqueios = aoRemoverBloqueios,
+                            aoCarregarSolicitacoes = aoCarregarSolicitacoes,
+                            aoCriarSolicitacoes = aoCriarSolicitacoes,
+                            aoAbrirEmbarque = { aba = Aba.EMBARQUE },
+                        )
+
                         Aba.EMBARQUE -> TelaMapaEmbarque(
                             aoCarregar = aoCarregarMapas,
                             aoTrocarStatus = aoCheckIn,
@@ -866,7 +1074,7 @@ private fun Tela(
                             login = ""
                             senha = ""
                             erro = null
-                            aba = Aba.CHECK_IN
+                            aba = Aba.PAINEL
                         }
                     },
                 ) {
@@ -890,7 +1098,7 @@ private fun Tela(
  * Conta fica no avatar do header (menu com Sair), não neste menu.
  *
  * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
- * Painel, Check list e Radar ficam desabilitados por enquanto.
+ * Radar fica desabilitado por enquanto.
  */
 private enum class Aba(
     val rotulo: Int,
@@ -898,7 +1106,7 @@ private enum class Aba(
     val habilitada: Boolean,
     val noMenuInferior: Boolean = true,
 ) {
-    PAINEL(R.string.aba_painel, Icons.Filled.Speed, false),
+    PAINEL(R.string.aba_painel, Icons.Filled.Speed, true),
     EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, true),
     CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, true),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
