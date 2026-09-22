@@ -68,6 +68,8 @@
     <string name="embarque_apenas_atrasados">Apenas atrasados</string>
     <string name="embarque_sem_gps">sem GPS</string>
     <string name="embarque_centralizar">Centralizar na minha localização</string>
+    <string name="embarque_mover_mapa">Mover o mapa</string>
+    <string name="embarque_mover_mapa_sair">Voltar a rolar a tela</string>
     <string name="embarque_sem_localizacao">Sem GPS. Libere a localização do app e toque de novo.</string>
     <string name="embarque_no_horario">no horário</string>
     <string name="check_in_editar">Check-in / editar</string>

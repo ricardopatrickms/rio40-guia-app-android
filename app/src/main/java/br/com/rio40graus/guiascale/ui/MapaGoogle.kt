@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -106,6 +108,13 @@ fun MapaGoogle(
     focoPedido: Int = 0,
     /** Sem permissão de GPS: o toque no botão pede a liberação. */
     aoPedirLocalizacao: () -> Unit = {},
+    /**
+     * Modo "mover o mapa" ligado. Quem decide é a tela, porque é ela que
+     * precisa parar de rolar — ver TelaEmbarque. Sem [aoAlternarMoverMapa] o
+     * botão não aparece.
+     */
+    moverMapa: Boolean = false,
+    aoAlternarMoverMapa: (() -> Unit)? = null,
 ) {
     val contexto = LocalContext.current
     val density = LocalDensity.current
@@ -313,6 +322,46 @@ fun MapaGoogle(
                 contentDescription = stringResource(R.string.embarque_centralizar),
                 modifier = Modifier.size(18.dp),
             )
+        }
+
+        /*
+         * Mover o mapa.
+         *
+         * A tela do embarque rola inteira, e a rolagem ficava com o arraste para
+         * cima e para baixo — o guia não conseguia andar pelo mapa. Ligado, a
+         * tela para de rolar e o arraste vai todo para o mapa; desligado, fica
+         * como sempre foi. Destacado quando ativo, para o guia saber por que a
+         * tela parou de rolar.
+         */
+        if (aoAlternarMoverMapa != null) {
+            FloatingActionButton(
+                onClick = aoAlternarMoverMapa,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .zIndex(2f)
+                    .padding(end = 12.dp, top = 60.dp)
+                    .size(40.dp),
+                shape = FloatingActionButtonDefaults.smallShape,
+                containerColor = if (moverMapa) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                contentColor = if (moverMapa) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+            ) {
+                Icon(
+                    imageVector = if (moverMapa) Icons.Filled.Close else Icons.Filled.OpenWith,
+                    contentDescription = stringResource(
+                        if (moverMapa) R.string.embarque_mover_mapa_sair else R.string.embarque_mover_mapa,
+                    ),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 

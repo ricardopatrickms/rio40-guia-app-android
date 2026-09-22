@@ -370,11 +370,16 @@ fun TelaEmbarque(
                 // Igual ao web: mapa com ~60vh (mínimo 380dp) — a lista fica abaixo da dobra.
                 val alturaMapa = max(maxHeight * 0.60f, 380.dp)
 
+                // Modo "mover o mapa" (botão no canto do mapa): com ele ligado a
+                // tela para de rolar, senão a rolagem fica com o arraste vertical
+                // e o guia não consegue andar pelo mapa.
+                var moverMapa by remember { mutableStateOf(false) }
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(rememberScrollState(), enabled = !moverMapa)
                             .padding(horizontal = 12.dp)
                             .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -405,8 +410,13 @@ fun TelaEmbarque(
                                 .height(alturaMapa)
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    // Borda destacada enquanto o mapa está "preso" ao dedo.
+                                    width = if (moverMapa) 2.dp else 1.dp,
+                                    color = if (moverMapa) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
                                     shape = RoundedCornerShape(12.dp),
                                 ),
                         ) {
@@ -428,6 +438,8 @@ fun TelaEmbarque(
                                 paddingTopo = 8.dp,
                                 paddingBase = 8.dp,
                                 aoPedirLocalizacao = aoPedirLocalizacao,
+                                moverMapa = moverMapa,
+                                aoAlternarMoverMapa = { moverMapa = !moverMapa },
                                 modifier = Modifier.fillMaxSize(),
                             )
 
