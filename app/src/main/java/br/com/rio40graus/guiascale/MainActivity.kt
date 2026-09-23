@@ -134,6 +134,7 @@ import br.com.rio40graus.guiascale.rede.Sessao
 import br.com.rio40graus.guiascale.rede.SolicitacaoTrabalho
 import br.com.rio40graus.guiascale.rede.TarefaChecklist
 import br.com.rio40graus.guiascale.rede.mensagemDeErro
+import br.com.rio40graus.guiascale.rede.mensagemDeErroLogin
 import br.com.rio40graus.guiascale.rede.nomeDoGuia
 import br.com.rio40graus.guiascale.rede.usuIdDoGuia
 import br.com.rio40graus.guiascale.ui.tema.CoresExtras
@@ -178,10 +179,6 @@ class MainActivity : ComponentActivity() {
     private val pedirEmSegundoPlano = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* o estado é relido pela tela */ }
-
-    private val pedirNotificacao = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* sem ela o serviço roda, mas o guia não vê o aviso */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -262,7 +259,7 @@ class MainActivity : ComponentActivity() {
                     aoTerminar(null)
                 }
             } catch (erro: Exception) {
-                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+                aoTerminar(mensagemDeErroLogin(this@MainActivity, erro))
             }
         }
     }
@@ -766,10 +763,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun pedirPermissoes() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pedirNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
         pedirLocalizacao.launch(
             arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,

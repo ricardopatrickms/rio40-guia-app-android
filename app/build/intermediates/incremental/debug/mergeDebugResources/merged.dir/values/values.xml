@@ -1,0 +1,798 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2" xmlns:ns2="http://schemas.android.com/tools">
+    <attr format="reference" name="nestedScrollViewStyle"/>
+    <bool name="enable_system_alarm_service_default">true</bool>
+    <bool name="enable_system_foreground_service_default">true</bool>
+    <bool name="enable_system_job_service_default">false</bool>
+    <bool name="workmanager_test_configuration">false</bool>
+    <color name="androidx_core_ripple_material_light">#1f000000</color>
+    <color name="androidx_core_secondary_text_default_material_light">#8a000000</color>
+    <color name="call_notification_answer_color">#1d873b</color>
+    <color name="call_notification_decline_color">#d93025</color>
+    <color name="common_google_signin_btn_text_dark_default">@android:color/white</color>
+    <color name="common_google_signin_btn_text_dark_disabled">#1F000000</color>
+    <color name="common_google_signin_btn_text_dark_focused">@android:color/black</color>
+    <color name="common_google_signin_btn_text_dark_pressed">@android:color/white</color>
+    <color name="common_google_signin_btn_text_light_default">#90000000</color>
+    <color name="common_google_signin_btn_text_light_disabled">#1F000000</color>
+    <color name="common_google_signin_btn_text_light_focused">#90000000</color>
+    <color name="common_google_signin_btn_text_light_pressed">#DE000000</color>
+    <color name="fundo">#F8F8F6</color>
+    <color name="ic_launcher_background">#1C4D97</color>
+    <color name="notification_action_color_filter">#ffffffff</color>
+    <color name="notification_icon_bg_color">#ff9e9e9e</color>
+    <dimen name="compat_button_inset_horizontal_material">4dp</dimen>
+    <dimen name="compat_button_inset_vertical_material">6dp</dimen>
+    <dimen name="compat_button_padding_horizontal_material">8dp</dimen>
+    <dimen name="compat_button_padding_vertical_material">4dp</dimen>
+    <dimen name="compat_control_corner_material">2dp</dimen>
+    <dimen name="compat_notification_large_icon_max_height">320dp</dimen>
+    <dimen name="compat_notification_large_icon_max_width">320dp</dimen>
+    <dimen name="notification_action_icon_size">32dp</dimen>
+    <dimen name="notification_action_text_size">13sp</dimen>
+    <dimen name="notification_big_circle_margin">12dp</dimen>
+    <dimen name="notification_content_margin_start">8dp</dimen>
+    <dimen name="notification_large_icon_height">64dp</dimen>
+    <dimen name="notification_large_icon_width">64dp</dimen>
+    <dimen name="notification_main_column_padding_top">10dp</dimen>
+    <dimen name="notification_media_narrow_margin">@dimen/notification_content_margin_start</dimen>
+    <dimen name="notification_right_icon_size">16dp</dimen>
+    <dimen name="notification_right_side_padding_top">4dp</dimen>
+    <dimen name="notification_small_icon_background_padding">3dp</dimen>
+    <dimen name="notification_small_icon_size_as_large">24dp</dimen>
+    <dimen name="notification_subtext_size">13sp</dimen>
+    <dimen name="notification_top_pad">10dp</dimen>
+    <dimen name="notification_top_pad_large_text">5dp</dimen>
+    <drawable name="notification_template_icon_bg">#3333B5E5</drawable>
+    <drawable name="notification_template_icon_low_bg">#0cffffff</drawable>
+    <item name="accessibility_action_clickable_span" type="id"/>
+    <item name="accessibility_custom_action_0" type="id"/>
+    <item name="accessibility_custom_action_1" type="id"/>
+    <item name="accessibility_custom_action_10" type="id"/>
+    <item name="accessibility_custom_action_11" type="id"/>
+    <item name="accessibility_custom_action_12" type="id"/>
+    <item name="accessibility_custom_action_13" type="id"/>
+    <item name="accessibility_custom_action_14" type="id"/>
+    <item name="accessibility_custom_action_15" type="id"/>
+    <item name="accessibility_custom_action_16" type="id"/>
+    <item name="accessibility_custom_action_17" type="id"/>
+    <item name="accessibility_custom_action_18" type="id"/>
+    <item name="accessibility_custom_action_19" type="id"/>
+    <item name="accessibility_custom_action_2" type="id"/>
+    <item name="accessibility_custom_action_20" type="id"/>
+    <item name="accessibility_custom_action_21" type="id"/>
+    <item name="accessibility_custom_action_22" type="id"/>
+    <item name="accessibility_custom_action_23" type="id"/>
+    <item name="accessibility_custom_action_24" type="id"/>
+    <item name="accessibility_custom_action_25" type="id"/>
+    <item name="accessibility_custom_action_26" type="id"/>
+    <item name="accessibility_custom_action_27" type="id"/>
+    <item name="accessibility_custom_action_28" type="id"/>
+    <item name="accessibility_custom_action_29" type="id"/>
+    <item name="accessibility_custom_action_3" type="id"/>
+    <item name="accessibility_custom_action_30" type="id"/>
+    <item name="accessibility_custom_action_31" type="id"/>
+    <item name="accessibility_custom_action_4" type="id"/>
+    <item name="accessibility_custom_action_5" type="id"/>
+    <item name="accessibility_custom_action_6" type="id"/>
+    <item name="accessibility_custom_action_7" type="id"/>
+    <item name="accessibility_custom_action_8" type="id"/>
+    <item name="accessibility_custom_action_9" type="id"/>
+    <item name="androidx_compose_ui_view_composition_context" type="id"/>
+    <item name="compose_view_saveable_id_tag" type="id"/>
+    <item name="consume_window_insets_tag" type="id"/>
+    <item name="hide_graphics_layer_in_inspector_tag" type="id"/>
+    <item name="hide_in_inspector_tag" type="id"/>
+    <item name="inspection_slot_table_set" type="id"/>
+    <item name="is_pooling_container_tag" type="id"/>
+    <item name="line1" type="id"/>
+    <item name="line3" type="id"/>
+    <item name="maps_compose_nodraw_container_view" type="id"/>
+    <item name="pooling_container_listener_holder_tag" type="id"/>
+    <item name="report_drawn" type="id"/>
+    <item name="tag_accessibility_actions" type="id"/>
+    <item name="tag_accessibility_clickable_spans" type="id"/>
+    <item name="tag_accessibility_heading" type="id"/>
+    <item name="tag_accessibility_pane_title" type="id"/>
+    <item name="tag_on_apply_window_listener" type="id"/>
+    <item name="tag_on_receive_content_listener" type="id"/>
+    <item name="tag_on_receive_content_mime_types" type="id"/>
+    <item name="tag_screen_reader_focusable" type="id"/>
+    <item name="tag_state_description" type="id"/>
+    <item name="tag_transition_group" type="id"/>
+    <item name="tag_unhandled_key_event_manager" type="id"/>
+    <item name="tag_unhandled_key_listeners" type="id"/>
+    <item name="tag_window_insets_animation_callback" type="id"/>
+    <item name="text" type="id"/>
+    <item name="text2" type="id"/>
+    <item name="title" type="id"/>
+    <id name="view_tree_lifecycle_owner"/>
+    <id name="view_tree_on_back_pressed_dispatcher_owner"/>
+    <id name="view_tree_saved_state_registry_owner"/>
+    <id name="view_tree_view_model_store_owner"/>
+    <item name="wrapped_composition_tag" type="id"/>
+    <integer name="google_play_services_version">12451000</integer>
+    <integer name="m3c_window_layout_in_display_cutout_mode">1</integer>
+    <integer name="status_bar_notification_info_maxnum">999</integer>
+    <string name="aba_check_in_nav">Check-in</string>
+    <string name="aba_check_list">Check list</string>
+    <string name="aba_conta">Conta</string>
+    <string name="aba_em_breve">Em breve</string>
+    <string name="aba_embarque">Embarque</string>
+    <string name="aba_painel">Painel</string>
+    <string name="aba_radar">Radar</string>
+    <string name="aba_rastreio">Rastreio</string>
+    <string name="agenda_anterior">Anterior</string>
+    <string name="agenda_dias">Dias com serviço</string>
+    <string name="agenda_passeios">Passeios</string>
+    <string name="agenda_pax">Total pax</string>
+    <string name="agenda_proximo">Próximo</string>
+    <string name="agenda_semana">Semana %1$d</string>
+    <string name="agenda_vazia">Nenhum serviço neste mês.</string>
+    <string name="androidx_startup" translatable="false">androidx.startup</string>
+    <string name="app_name">GuiaScale</string>
+    <string name="aviso_segundo_plano">Falta liberar a localização "o tempo todo". Sem ela o rastreio para quando você sai do app.</string>
+    <string name="bloqueio_bloquear">Bloquear (%1$d)</string>
+    <string name="bloqueio_desbloquear">Desbloquear (%1$d)</string>
+    <string name="bloqueio_escala">Só é possível marcar nos dias em que você atende: %1$s. Para alterar, fale com o escritório.</string>
+    <string name="bloqueio_legenda_bloqueado">Os dias em vermelho já estão bloqueados.</string>
+    <string name="bloqueio_legenda_reserva">Os dias em amarelo têm reserva sua — para bloquear, fale com o escritório.</string>
+    <string name="bloqueio_motivo_hint">Ex.: férias, atestado médico, viagem pessoal…</string>
+    <string name="bloqueio_motivo_label">Motivo do bloqueio (opcional)</string>
+    <string name="bloqueio_titulo">Bloquear em várias datas</string>
+    <string name="bloqueios_proximos">Bloqueios próximos</string>
+    <string name="bloqueios_remover">Remover</string>
+    <string name="bloqueios_removido">Bloqueio removido</string>
+    <string name="call_notification_answer_action">Answer</string>
+    <string name="call_notification_answer_video_action">Video</string>
+    <string name="call_notification_decline_action">Decline</string>
+    <string name="call_notification_hang_up_action">Hang Up</string>
+    <string name="call_notification_incoming_text">Incoming call</string>
+    <string name="call_notification_ongoing_text">Ongoing call</string>
+    <string name="call_notification_screening_text">Screening an incoming call</string>
+    <string name="campo_login">Login</string>
+    <string name="campo_senha">Senha</string>
+    <string name="canal_rastreio">Rastreio do passeio</string>
+    <string name="canal_rastreio_descricao">Aviso permanente enquanto o app grava por onde você passa.</string>
+    <string name="cancelar">Cancelar</string>
+    <string name="check_in">Check-in</string>
+    <string name="check_in_editar">Check-in / editar</string>
+    <string name="check_in_feito">Check-in feito</string>
+    <string name="checkin_a_receber">A receber</string>
+    <string name="checkin_adicionar_forma">Adicionar forma</string>
+    <string name="checkin_bloqueado">Mapa bloqueado pelo acerto. Status não pode ser alterado.</string>
+    <string name="checkin_capacidade">Capacidade (pax)</string>
+    <string name="checkin_carregando_formas">Carregando formas de pagamento…</string>
+    <string name="checkin_categoria">Categoria</string>
+    <string name="checkin_cliente_ausente">Cliente não informado</string>
+    <string name="checkin_excesso">Excesso</string>
+    <string name="checkin_falta">Falta receber</string>
+    <string name="checkin_forma">Forma</string>
+    <string name="checkin_formas_erro">Não foi possível carregar as formas de pagamento.</string>
+    <string name="checkin_idioma">Idioma</string>
+    <string name="checkin_motivo">Motivo</string>
+    <string name="checkin_motivo_erro">Não foi possível carregar os motivos.</string>
+    <string name="checkin_motivo_titulo">Motivo do no show</string>
+    <string name="checkin_na_maquina">Na máquina: %1$s · taxa %2$s%%</string>
+    <string name="checkin_no_show">No show</string>
+    <string name="checkin_pagamentos">Pagamentos</string>
+    <string name="checkin_parcela">Parcela</string>
+    <string name="checkin_parcial">Parcial</string>
+    <string name="checkin_parcial_invalido">Não pode faltar mais gente do que a reserva tem.</string>
+    <string name="checkin_parcial_titulo">Quem não embarcou</string>
+    <string name="checkin_recebido">Recebido</string>
+    <string name="checkin_remover">Remover</string>
+    <string name="checkin_resumo">Resumo financeiro</string>
+    <string name="checkin_salvar_pagamento">Salvar pagamento</string>
+    <string name="checkin_selecionar_idioma">Selecionar idioma</string>
+    <string name="checkin_sem_forma">Nenhuma forma adicionada. Use \"Adicionar forma\" para dividir o pagamento.</string>
+    <string name="checkin_status">Status da reserva</string>
+    <string name="checkin_tipo">Tipo</string>
+    <string name="checkin_titulo">Check-in do cliente</string>
+    <string name="checkin_total">Total</string>
+    <string name="checkin_total_pax">Total: %1$d pax · quem não embarcou se informa no PARCIAL</string>
+    <string name="checkin_valor">Valor</string>
+    <string name="checklist_concluidas">%1$d/%2$d concluídas</string>
+    <string name="checklist_passeio">Passeio</string>
+    <string name="checklist_selecione">Selecione</string>
+    <string name="checklist_sem_escala">Nenhuma escala para hoje.</string>
+    <string name="checklist_sem_tarefas">Nenhuma tarefa cadastrada para este passeio.</string>
+    <string name="checklist_titulo">Check list</string>
+    <string name="checklist_todos_fechados">Os embarques de hoje já foram fechados pelo financeiro. O check list deles está concluído.</string>
+    <string name="close_drawer">"Close navigation menu"</string>
+    <string name="close_sheet">"Close sheet"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Enable</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text"><ns1:g id="app_name">%1$s</ns1:g> won\'t work unless you enable Google Play services.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Enable Google Play services</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Install</string>
+    <string name="common_google_play_services_install_text"><ns1:g id="app_name">%1$s</ns1:g> won\'t run without Google Play services, which are missing from your device.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Get Google Play services</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play services availability</string>
+    <string name="common_google_play_services_notification_ticker">Google Play services error</string>
+    <string name="common_google_play_services_unknown_issue"><ns1:g id="app_name">%1$s</ns1:g> is having trouble with Google Play services. Please try again.</string>
+    <string name="common_google_play_services_unsupported_text"><ns1:g id="app_name">%1$s</ns1:g> won\'t run without Google Play services, which are not supported by your device.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Update</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text"><ns1:g id="app_name">%1$s</ns1:g> won\'t run unless you update Google Play services.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Update Google Play services</string>
+    <string name="common_google_play_services_updating_text"><ns1:g id="app_name">%1$s</ns1:g> won\'t run without Google Play services, which are currently updating.</string>
+    <string name="common_google_play_services_wear_update_text">New version of Google Play services needed. It will update itself shortly.</string>
+    <string name="common_open_on_phone">Open on phone</string>
+    <string name="common_signin_button_text">Sign in</string>
+    <string name="common_signin_button_text_long">Sign in with Google</string>
+    <string name="confirmar">Confirmar</string>
+    <string name="conta_conectado_como">Conectado como</string>
+    <string name="conta_sair_sistema">Sair do sistema</string>
+    <string name="conta_sem_nome">Guia</string>
+    <string name="default_error_message">"Invalid input"</string>
+    <string name="default_popup_window_title" ns2:ignore="ExtraTranslation">"Pop-Up Window"</string>
+    <string name="dropdown_menu">"Dropdown menu"</string>
+    <string name="embarque_apenas_atrasados">Apenas atrasados</string>
+    <string name="embarque_apto">Apto %1$s</string>
+    <string name="embarque_apto_popup">Apto: %1$s</string>
+    <string name="embarque_atraso_acima_15">acima de 15 min</string>
+    <string name="embarque_atraso_ate_15">até 15 min</string>
+    <string name="embarque_atualizar">Atualizar</string>
+    <string name="embarque_centralizar">Centralizar na minha localização</string>
+    <string name="embarque_cliente">Cliente: %1$s</string>
+    <string name="embarque_contagem">%1$d ponto(s)</string>
+    <string name="embarque_distancia">distância</string>
+    <string name="embarque_filtrar_atrasados">Filtrar atrasados</string>
+    <string name="embarque_filtrar_data">Filtrar por data</string>
+    <string name="embarque_hoje">Hoje</string>
+    <string name="embarque_horario">Horário: %1$s</string>
+    <string name="embarque_iniciar">Iniciar embarque</string>
+    <string name="embarque_legenda_atraso">Atraso:</string>
+    <string name="embarque_legenda_status">Status:</string>
+    <string name="embarque_mover_mapa">Mover o mapa</string>
+    <string name="embarque_mover_mapa_sair">Voltar a rolar a tela</string>
+    <string name="embarque_no_horario">no horário</string>
+    <string name="embarque_no_mapa">%1$d de %2$d pontos no mapa</string>
+    <string name="embarque_parar">Parar embarque</string>
+    <string name="embarque_pontos_sem_coord">%1$d ponto(s) sem latitude/longitude no cadastro do sistema.</string>
+    <string name="embarque_pontos_titulo">Pontos de embarque</string>
+    <string name="embarque_proximo">Próximo embarque</string>
+    <string name="embarque_recarregar">Tentar de novo</string>
+    <string name="embarque_sem_gps">sem GPS</string>
+    <string name="embarque_sem_localizacao">Sem GPS. Libere a localização do app e toque de novo.</string>
+    <string name="embarque_sem_mapa">Nenhum mapa de embarque para hoje.</string>
+    <string name="embarque_status_checkin">Check-in</string>
+    <string name="embarque_status_noshow">No show</string>
+    <string name="embarque_status_parcial">Parcial</string>
+    <string name="embarque_status_reservado">Reservado</string>
+    <string name="embarque_subtitulo">%1$s · %2$d de %3$d pontos no mapa</string>
+    <string name="embarque_subtitulo_historico">%1$s · %2$d de %3$d pontos no mapa · modo histórico</string>
+    <string name="entrando">Entrando…</string>
+    <string name="entrar">Entrar</string>
+    <string name="entrar_explicacao">Entre com o mesmo login e senha do app do guia. O rastreio grava por onde você passou durante o passeio.</string>
+    <string name="entrar_titulo">Entrar</string>
+    <string name="erro_generico">Não foi possível concluir. Tente de novo.</string>
+    <string name="erro_login">Não foi possível entrar. Confira o login e a senha.</string>
+    <string name="erro_muitas_tentativas">Muitas tentativas. Espere um minuto e tente de novo.</string>
+    <string name="erro_sem_conexao">Sem conexão com o servidor. Confira a internet e tente de novo.</string>
+    <string name="fechar">Fechar</string>
+    <string name="fila_pendente">%1$d pontos aguardando envio</string>
+    <string name="geocheckin_titulo">Geocheck-in</string>
+    <string name="in_progress">In progress</string>
+    <string name="indeterminate">Partially checked</string>
+    <string name="iniciar_rastreio">Iniciar rastreio</string>
+    <string name="lei_buscar">Buscar na lei: artigo, vedação, Cadastur, penalidade…</string>
+    <string name="lei_comentario">Comentário</string>
+    <string name="lei_compromisso_texto">Cadastur ativo + conduta ética + procedimentos corretos = guia Rio40º em plena conformidade legal. A Lei nº 8.623/1993 é o fundamento jurídico que legitima a profissão e protege o turista, a empresa e o próprio guia.</string>
+    <string name="lei_compromisso_titulo">Compromisso legal do guia Rio40º</string>
+    <string name="lei_continuar_secao">Seção %1$d — %2$s</string>
+    <string name="lei_continuar_titulo">Continuar de onde parou</string>
+    <string name="lei_kpi_anos">30+ anos</string>
+    <string name="lei_kpi_anos_s">em vigor</string>
+    <string name="lei_kpi_artigos">12 artigos</string>
+    <string name="lei_kpi_artigos_s">na lei original</string>
+    <string name="lei_kpi_cadastur">Cadastur</string>
+    <string name="lei_kpi_cadastur_s">obrigatório</string>
+    <string name="lei_kpi_nacional">Nacional</string>
+    <string name="lei_kpi_nacional_s">abrangência</string>
+    <string name="lei_legislacao">Legislação federal</string>
+    <string name="lei_retomar">Retomar</string>
+    <string name="lei_secao">Seção %1$d</string>
+    <string name="lei_subtitulo">Regulamenta a profissão de guia de turismo no Brasil. Manual de conduta organizado e otimizado para consulta rápida.</string>
+    <string name="lei_sync_carregando">Carregando progresso…</string>
+    <string name="lei_sync_offline">Salvo neste dispositivo</string>
+    <string name="lei_sync_ok">Sincronizado em todos os dispositivos</string>
+    <string name="lei_sync_salvando">Salvando…</string>
+    <string name="lei_titulo_lei">Lei nº 8.623, de 28 de janeiro de 1993</string>
+    <string name="lei_vazia">Nenhuma seção encontrada para \"%1$s\".</string>
+    <string name="liberar_bateria">Liberar economia de bateria</string>
+    <string name="liberar_permissao">Liberar localização</string>
+    <string name="m3c_bottom_sheet_collapse_description">Collapse bottom sheet</string>
+    <string name="m3c_bottom_sheet_dismiss_description">Dismiss bottom sheet</string>
+    <string name="m3c_bottom_sheet_drag_handle_description">Drag handle</string>
+    <string name="m3c_bottom_sheet_expand_description">Expand bottom sheet</string>
+    <string name="m3c_bottom_sheet_pane_title">Bottom Sheet</string>
+    <string name="m3c_date_input_headline">Entered date</string>
+    <string name="m3c_date_input_headline_description">Entered date: %1$s</string>
+    <string name="m3c_date_input_invalid_for_pattern">Date does not match expected pattern: %1$s</string>
+    <string name="m3c_date_input_invalid_not_allowed">Date not allowed: %1$s</string>
+    <string name="m3c_date_input_invalid_year_range">
+        Date out of expected year range %1$s - %2$s
+    </string>
+    <string name="m3c_date_input_label">Date</string>
+    <string name="m3c_date_input_no_input_description">None</string>
+    <string name="m3c_date_input_title">Select date</string>
+    <string name="m3c_date_picker_headline">"Selected date"</string>
+    <string name="m3c_date_picker_headline_description">Current selection: %1$s</string>
+    <string name="m3c_date_picker_navigate_to_year_description">Navigate to year %1$s</string>
+    <string name="m3c_date_picker_no_selection_description">None</string>
+    <string name="m3c_date_picker_scroll_to_earlier_years">Scroll to show earlier years</string>
+    <string name="m3c_date_picker_scroll_to_later_years">Scroll to show later years</string>
+    <string name="m3c_date_picker_switch_to_calendar_mode">Switch to calendar input mode</string>
+    <string name="m3c_date_picker_switch_to_day_selection">
+        "Swipe to select a year, or tap to switch back to selecting a day"
+    </string>
+    <string name="m3c_date_picker_switch_to_input_mode">Switch to text input mode</string>
+    <string name="m3c_date_picker_switch_to_next_month">"Change to next month"</string>
+    <string name="m3c_date_picker_switch_to_previous_month">"Change to previous month"</string>
+    <string name="m3c_date_picker_switch_to_year_selection">"Switch to selecting a year"</string>
+    <string name="m3c_date_picker_title">"Select date"</string>
+    <string name="m3c_date_picker_today_description">Today</string>
+    <string name="m3c_date_picker_year_picker_pane_title">Year picker visible</string>
+    <string name="m3c_date_range_input_invalid_range_input">Invalid date range input</string>
+    <string name="m3c_date_range_input_title">Enter dates</string>
+    <string name="m3c_date_range_picker_day_in_range">In range</string>
+    <string name="m3c_date_range_picker_end_headline">End date</string>
+    <string name="m3c_date_range_picker_scroll_to_next_month">Scroll to show the next month</string>
+    <string name="m3c_date_range_picker_scroll_to_previous_month">Scroll to show the previous month</string>
+    <string name="m3c_date_range_picker_start_headline">Start date</string>
+    <string name="m3c_date_range_picker_title">Select dates</string>
+    <string name="m3c_dialog">"Dialog"</string>
+    <string name="m3c_dropdown_menu_collapsed">Collapsed</string>
+    <string name="m3c_dropdown_menu_expanded">Expanded</string>
+    <string name="m3c_dropdown_menu_toggle">Toggle dropdown menu</string>
+    <string name="m3c_search_bar_search">Search</string>
+    <string name="m3c_snackbar_dismiss">Dismiss</string>
+    <string name="m3c_suggestions_available">Suggestions below</string>
+    <string name="m3c_time_picker_am">AM</string>
+    <string name="m3c_time_picker_hour">Hour</string>
+    <string name="m3c_time_picker_hour_24h_suffix">%1$d hours</string>
+    <string name="m3c_time_picker_hour_selection">Select hour</string>
+    <string name="m3c_time_picker_hour_suffix">%1$d o\'clock</string>
+    <string name="m3c_time_picker_hour_text_field">for hour</string>
+    <string name="m3c_time_picker_minute">Minute</string>
+    <string name="m3c_time_picker_minute_selection">Select minutes</string>
+    <string name="m3c_time_picker_minute_suffix">%1$d minutes</string>
+    <string name="m3c_time_picker_minute_text_field">for minutes</string>
+    <string name="m3c_time_picker_period_toggle_description">Select AM or PM</string>
+    <string name="m3c_time_picker_pm">PM</string>
+    <string name="m3c_tooltip_long_press_label">Show tooltip</string>
+    <string name="m3c_tooltip_pane_description">Tooltip</string>
+    <string name="mapa_embarque_a_receber_rotulo">A RECEBER:</string>
+    <string name="mapa_embarque_acerto">Acerto confirmado — mapa somente leitura.</string>
+    <string name="mapa_embarque_adultos">ADULTOS:</string>
+    <string name="mapa_embarque_alterar_status">Alterar status</string>
+    <string name="mapa_embarque_apoio">Apoio</string>
+    <string name="mapa_embarque_apto">APTO:</string>
+    <string name="mapa_embarque_atividade">ATIVIDADE:</string>
+    <string name="mapa_embarque_capacidade">CAPACIDADE:</string>
+    <string name="mapa_embarque_carro">CARRO MODELO</string>
+    <string name="mapa_embarque_carro_rotulo">CARRO MODELO:</string>
+    <string name="mapa_embarque_chd">CHD\'s:</string>
+    <string name="mapa_embarque_checkin_editar">Check-in / editar</string>
+    <string name="mapa_embarque_contato">CONTATO:</string>
+    <string name="mapa_embarque_data">DATA:</string>
+    <string name="mapa_embarque_editado_em"> (editado em %1$s)</string>
+    <string name="mapa_embarque_editar_ocorrencia">Editar ocorrência</string>
+    <string name="mapa_embarque_em_andamento">Em andamento (%1$d)</string>
+    <string name="mapa_embarque_embarques">EMBARQUES DO DIA</string>
+    <string name="mapa_embarque_empresa">EMPRESA:</string>
+    <string name="mapa_embarque_excluir_ocorrencia">Excluir ocorrência</string>
+    <string name="mapa_embarque_excluir_texto">O relato será removido permanentemente do histórico.</string>
+    <string name="mapa_embarque_excluir_titulo">Excluir esta ocorrência?</string>
+    <string name="mapa_embarque_finalizados">Finalizados (%1$d)</string>
+    <string name="mapa_embarque_fornecedores">FORNECEDORES</string>
+    <string name="mapa_embarque_guia">GUIA:</string>
+    <string name="mapa_embarque_idoso">IDOSO:</string>
+    <string name="mapa_embarque_inf">INF:</string>
+    <string name="mapa_embarque_informacoes">INFORMAÇÕES</string>
+    <string name="mapa_embarque_informar_pagamento">Informar pagamento</string>
+    <string name="mapa_embarque_jovem">JOVEM:</string>
+    <string name="mapa_embarque_legenda_atraso">Atraso (previsto × check-in):</string>
+    <string name="mapa_embarque_ligar">Ligar</string>
+    <string name="mapa_embarque_motorista">MOTORISTA</string>
+    <string name="mapa_embarque_motorista_rotulo">MOTORISTA:</string>
+    <string name="mapa_embarque_nome">NOME:</string>
+    <string name="mapa_embarque_obs">OBS:</string>
+    <string name="mapa_embarque_ocorrencias">OCORRÊNCIAS</string>
+    <string name="mapa_embarque_ocupacao">OCUPAÇÃO DO DIA:</string>
+    <string name="mapa_embarque_pacote">PACOTE:</string>
+    <string name="mapa_embarque_pax">✓ %1$d/%2$d</string>
+    <string name="mapa_embarque_placa">PLACA:</string>
+    <string name="mapa_embarque_qtd">QTD:</string>
+    <string name="mapa_embarque_qtd_pax">QTD PAX\'S:</string>
+    <string name="mapa_embarque_relato_placeholder">Escreva aqui os relatos do dia…</string>
+    <string name="mapa_embarque_resolvida">resolvida</string>
+    <string name="mapa_embarque_saida">SAÍDA:</string>
+    <string name="mapa_embarque_saldo_cash">SALDO EM CASH:</string>
+    <string name="mapa_embarque_saldo_cash_hint">(saldo do movimento)</string>
+    <string name="mapa_embarque_saldo_pagar">SALDO A PAGAR:</string>
+    <string name="mapa_embarque_saldo_receber">SALDO A RECEBER:</string>
+    <string name="mapa_embarque_salvando_relato">Salvando…</string>
+    <string name="mapa_embarque_salvar_relato">Salvar relato</string>
+    <string name="mapa_embarque_sem_embarque">Nenhum ponto de embarque cadastrado.</string>
+    <string name="mapa_embarque_sem_fornecedor">Nenhum fornecedor cadastrado.</string>
+    <string name="mapa_embarque_sem_info">Sem informações extras.</string>
+    <string name="mapa_embarque_sem_mapa">Nenhum mapa nesta aba.</string>
+    <string name="mapa_embarque_sem_ocorrencia">Nenhuma ocorrência registrada.</string>
+    <string name="mapa_embarque_telefone">TELEFONE</string>
+    <string name="mapa_embarque_telefone_rotulo">TELEFONE:</string>
+    <string name="mapa_embarque_titulo">Mapa de embarque</string>
+    <string name="mapa_embarque_total">TOTAL:</string>
+    <string name="mapa_embarque_total_pago">TOTAL PAGO:</string>
+    <string name="mapa_embarque_total_receber">TOTAL A RECEBER:</string>
+    <string name="mapa_embarque_total_recebido">TOTAL RECEBIDO:</string>
+    <string name="mapa_embarque_tour">TOUR</string>
+    <string name="mapa_embarque_valor_pagar">VALOR TOTAL A PAGAR:</string>
+    <string name="mapa_embarque_ver_pagamentos">Ver pagamentos · pago %1$s</string>
+    <string name="mapa_embarque_ver_pagamentos_falta">Ver pagamentos · pago %1$s · falta %2$s</string>
+    <string name="mapa_embarque_whatsapp">WhatsApp</string>
+    <string name="mapa_pag_forn_adicionar">+ Adicionar</string>
+    <string name="mapa_pag_forn_excede">Excede %1$s</string>
+    <string name="mapa_pag_forn_falta">Falta %1$s</string>
+    <string name="mapa_pag_forn_formas">Formas de pagamento</string>
+    <string name="mapa_pag_forn_ok">OK</string>
+    <string name="mapa_pag_forn_salvar">Salvar</string>
+    <string name="mapa_pag_forn_sem_formas">Não foi possível carregar as formas de pagamento.</string>
+    <string name="mapa_pag_forn_soma">Soma: %1$s / Total %2$s</string>
+    <string name="mapa_pag_forn_titulo">Formas de pagamento — %1$s</string>
+    <string name="mapa_pag_forn_total">Total</string>
+    <string name="mapa_pag_forn_vazio">Nenhuma forma adicionada. Use \"+ Adicionar\" para registrar como o fornecedor foi pago.</string>
+    <string name="navigation_menu">"Navigation menu"</string>
+    <string name="not_selected">Not selected</string>
+    <string name="painel_aba_agenda">Agenda</string>
+    <string name="painel_aba_ficha">Minha Ficha</string>
+    <string name="painel_aba_lei">Lei do Guia</string>
+    <string name="painel_aba_passeios">Passeios</string>
+    <string name="painel_aba_visao">Visão Geral</string>
+    <string name="painel_agora">agora mesmo</string>
+    <string name="painel_aguardando">aguardando primeira atualização</string>
+    <string name="painel_aniv_1">em 1 dia</string>
+    <string name="painel_aniv_hoje">é hoje!</string>
+    <string name="painel_aniv_n">em %1$d dias</string>
+    <string name="painel_atualizado">Atualizado</string>
+    <string name="painel_demanda_media">Demanda média</string>
+    <string name="painel_disp_desc">Bloqueie um ou mais dias em que você não pode trabalhar</string>
+    <string name="painel_disp_titulo">Disponibilidade</string>
+    <string name="painel_ficha_ativo">Ativo</string>
+    <string name="painel_ficha_avaliacao">Avaliação média</string>
+    <string name="painel_ficha_cadastur">Cadastur: %1$s</string>
+    <string name="painel_ficha_especialidades">Especialidades</string>
+    <string name="painel_ficha_especialidades_titulo">Especialidades por destino</string>
+    <string name="painel_ficha_inativo">Inativo</string>
+    <string name="painel_ficha_label_cadastur">Cadastur:</string>
+    <string name="painel_ficha_label_email">E-mail:</string>
+    <string name="painel_ficha_label_entrada">Entrada:</string>
+    <string name="painel_ficha_label_telefone">Telefone:</string>
+    <string name="painel_ficha_nivel">Nível atual</string>
+    <string name="painel_ficha_ocorrencias">Ocorrências no ano</string>
+    <string name="painel_ficha_passeios_hist">Passeios (histórico)</string>
+    <string name="painel_ficha_pontualidade">Pontualidade</string>
+    <string name="painel_ficha_sem_esp">Sem dados nos últimos 12 meses.</string>
+    <string name="painel_ficha_stats">Tempo na empresa: %1$s · %2$d passeios · %3$d ocorrências no ano</string>
+    <string name="painel_ficha_tempo">Tempo de empresa</string>
+    <string name="painel_guia_cadastur_ativo">Guia de Turismo — CADASTUR ativo</string>
+    <string name="painel_guia_turismo">Guia de Turismo</string>
+    <string name="painel_ha_min">há %1$d min</string>
+    <string name="painel_ha_s">há %1$ds</string>
+    <string name="painel_kpi_agendamentos">Agendamentos</string>
+    <string name="painel_kpi_aniv">Data de aniversário%1$s</string>
+    <string name="painel_kpi_bloqueados">Dias bloqueados</string>
+    <string name="painel_kpi_dias">Dias trabalhados</string>
+    <string name="painel_kpi_passeios">Passeios realizados</string>
+    <string name="painel_kpi_servicos">Total de serviços</string>
+    <string name="painel_kpi_valores">Valores no período</string>
+    <string name="painel_lei_aviso">O texto completo da lei continua disponível no app web.</string>
+    <string name="painel_lei_progresso">Seções abertas: %1$d · Última: %2$s</string>
+    <string name="painel_lei_titulo">Lei do Guia</string>
+    <string name="painel_mapa_desc">Veja as reservas dos passeios em que você foi escalado</string>
+    <string name="painel_mapa_titulo">Mapa de embarque</string>
+    <string name="painel_offline">Offline</string>
+    <string name="painel_passeio_detalhe">%1$d× · %2$d pax · %3$s</string>
+    <string name="painel_passeios_realizados">Passeios realizados (%1$d)</string>
+    <string name="painel_perfil">Perfil</string>
+    <string name="painel_periodo_acumulado">Acumulado do ano</string>
+    <string name="painel_periodo_mes">Mês atual</string>
+    <string name="painel_periodo_semana">Esta semana</string>
+    <string name="painel_proximos">Próximos agendamentos</string>
+    <string name="painel_sem_agenda">Nenhum item na agenda.</string>
+    <string name="painel_sem_passeios">Nenhum passeio no período.</string>
+    <string name="painel_solicitar_desc">Peça datas específicas para trabalhar e descreva a solicitação</string>
+    <string name="painel_solicitar_titulo">Solicitar trabalho</string>
+    <string name="painel_subtitulo">Acompanhe seu desempenho, agenda e avaliações.</string>
+    <string name="painel_titulo">Painel do guia</string>
+    <string name="painel_ultimos_7">Últimos 7 dias</string>
+    <string name="parar_rastreio">Parar rastreio</string>
+    <string name="passeios_col_avaliacao">Avaliação</string>
+    <string name="passeios_col_passeio">Passeio</string>
+    <string name="passeios_col_pax">Pax</string>
+    <string name="passeios_col_qtd">Qtd</string>
+    <string name="passeios_col_receita">Receita</string>
+    <string name="passeios_comparativo">Comparativo — mês atual vs anterior</string>
+    <string name="passeios_detalhamento">Detalhamento</string>
+    <string name="passeios_mes_anterior">Mês anterior</string>
+    <string name="passeios_mes_atual">Mês atual</string>
+    <string name="passeios_total">Total</string>
+    <string name="range_end">"Range end"</string>
+    <string name="range_start">"Range start"</string>
+    <string name="rastreio_aguardando_sinal">Procurando sinal de GPS…</string>
+    <string name="rastreio_ativo">Rastreio ligado</string>
+    <string name="rastreio_ligado_pelo_checkin">Rastreio ligado no primeiro check-in.</string>
+    <string name="rastreio_parado">Rastreio desligado</string>
+    <string name="rastreio_pontos">%1$d pontos capturados</string>
+    <string name="saindo">Saindo…</string>
+    <string name="sair">Sair</string>
+    <string name="sair_texto">O rastreio será desligado. Os pontos já capturados continuam guardados no aparelho e sobem no próximo login.</string>
+    <string name="sair_titulo">Sair do app?</string>
+    <string name="selected">Selected</string>
+    <string name="solicitar_atende_todos">Você já atende todos os dias da semana — não há dia a solicitar.</string>
+    <string name="solicitar_enviar">Enviar solicitação</string>
+    <string name="solicitar_escala">Em verde, os dias em que você já atende (%1$s). Escolha aqui os outros dias em que quer trabalhar.</string>
+    <string name="solicitar_legenda_aprovada">Em verde escuro, os dias aprovados — você já pode ser escalado neles.</string>
+    <string name="solicitar_legenda_pendente">Em amarelo, os dias aguardando aprovação do escritório.</string>
+    <string name="solicitar_legenda_recusada">Riscados, os dias recusados. Dias já solicitados não podem ser escolhidos de novo.</string>
+    <string name="solicitar_motivo_hint">Ex.: quero trabalhar como guia no Cristo Redentor, disponho de transporte próprio, etc.</string>
+    <string name="solicitar_motivo_label">Solicitação / observações</string>
+    <string name="solicitar_subtitulo">Escolha uma ou mais datas e descreva o tipo de trabalho que deseja solicitar.</string>
+    <string name="solicitar_titulo">Solicitar trabalho</string>
+    <string name="state_empty">Empty</string>
+    <string name="state_off">Off</string>
+    <string name="state_on">On</string>
+    <string name="status_bar_notification_info_overflow">999+</string>
+    <string name="switch_role">Switch</string>
+    <string name="tab">Tab</string>
+    <string name="template_percent"><ns1:g id="percentage">%1$d</ns1:g> percent.</string>
+    <string name="tooltip_description">tooltip</string>
+    <string name="tooltip_label">show tooltip</string>
+    <style name="DialogWindowTheme">
+        <item name="android:windowClipToOutline">false</item>
+    </style>
+    <style name="EdgeToEdgeFloatingDialogTheme" parent="android:Theme.DeviceDefault.Dialog">
+        <item name="android:windowLayoutInDisplayCutoutMode" ns2:targetApi="27">@integer/m3c_window_layout_in_display_cutout_mode</item>
+        <item name="android:windowClipToOutline">false</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+    <style name="EdgeToEdgeFloatingDialogWindowTheme">
+        <item name="android:dialogTheme">@style/EdgeToEdgeFloatingDialogTheme</item>
+    </style>
+    <style name="FloatingDialogTheme">
+        <item name="android:windowIsFloating">false</item>
+    </style>
+    <style name="FloatingDialogWindowTheme">
+        <item name="android:windowClipToOutline">false</item>
+        <item name="android:dialogTheme">@style/FloatingDialogTheme</item>
+    </style>
+    <style name="TextAppearance.Compat.Notification" parent="@android:style/TextAppearance.StatusBar.EventContent"/>
+    <style name="TextAppearance.Compat.Notification.Info">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?android:attr/textColorSecondary</item>
+    </style>
+    <style name="TextAppearance.Compat.Notification.Line2" parent="TextAppearance.Compat.Notification.Info"/>
+    <style name="TextAppearance.Compat.Notification.Time">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?android:attr/textColorSecondary</item>
+    </style>
+    <style name="TextAppearance.Compat.Notification.Title" parent="@android:style/TextAppearance.StatusBar.EventContent.Title"/>
+    <style name="Theme.GuiaScale" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fundo</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Widget.Compat.NotificationActionContainer" parent=""/>
+    <style name="Widget.Compat.NotificationActionText" parent=""/>
+    <declare-styleable name="Capability">
+        
+        <attr format="reference" name="queryPatterns"/>
+        
+        <attr format="boolean" name="shortcutMatchRequired"/>
+    </declare-styleable>
+    <declare-styleable name="ColorStateListItem">
+        
+        <attr name="android:color"/>
+        
+        <attr format="float" name="alpha"/>
+        <attr name="android:alpha"/>
+        
+        <attr format="float" name="lStar"/>
+        <attr name="android:lStar"/>
+    </declare-styleable>
+    <declare-styleable name="FontFamily">
+        
+        <attr format="string" name="fontProviderAuthority"/>
+        
+        <attr format="string" name="fontProviderPackage"/>
+        
+        <attr format="string" name="fontProviderQuery"/>
+        
+        <attr format="string" name="fontProviderFallbackQuery"/>
+        
+        <attr format="reference" name="fontProviderCerts"/>
+        
+        <attr name="fontProviderFetchStrategy">
+            
+            <enum name="blocking" value="0"/>
+            
+            <enum name="async" value="1"/>
+        </attr>
+        
+        <attr format="integer" name="fontProviderFetchTimeout">
+            
+            <enum name="forever" value="-1"/>
+        </attr>
+        
+        <attr format="string" name="fontProviderSystemFontFamily"/>
+    </declare-styleable>
+    <declare-styleable name="FontFamilyFont">
+        
+        <attr name="fontStyle">
+            <enum name="normal" value="0"/>
+            <enum name="italic" value="1"/>
+        </attr>
+        
+        <attr format="reference" name="font"/>
+        
+        <attr format="integer" name="fontWeight"/>
+        
+        <attr format="string" name="fontVariationSettings"/>
+        
+        <attr format="integer" name="ttcIndex"/>
+        
+        <attr name="android:fontStyle"/>
+        <attr name="android:font"/>
+        <attr name="android:fontWeight"/>
+        <attr name="android:fontVariationSettings"/>
+        <attr name="android:ttcIndex"/>
+    </declare-styleable>
+    <declare-styleable name="GradientColor">
+        
+        <attr name="android:startColor"/>
+        
+        <attr name="android:centerColor"/>
+        
+        <attr name="android:endColor"/>
+        
+        <attr name="android:type"/>
+
+        
+        
+        <attr name="android:gradientRadius"/>
+
+        
+        
+        <attr name="android:centerX"/>
+        
+        <attr name="android:centerY"/>
+
+        
+        
+        <attr name="android:startX"/>
+        
+        <attr name="android:startY"/>
+        
+        <attr name="android:endX"/>
+        
+        <attr name="android:endY"/>
+
+        
+        <attr name="android:tileMode"/>
+    </declare-styleable>
+    <declare-styleable name="GradientColorItem">
+        
+        <attr name="android:offset"/>
+        
+        <attr name="android:color"/>
+    </declare-styleable>
+    <declare-styleable name="LoadingImageView"><attr name="imageAspectRatioAdjust">
+<enum name="none" value="0"/>
+
+<enum name="adjust_width" value="1"/>
+
+<enum name="adjust_height" value="2"/>
+
+</attr>
+
+<attr format="float" name="imageAspectRatio"/>
+
+<attr format="boolean" name="circleCrop"/>
+</declare-styleable>
+    <declare-styleable name="MapAttrs"><attr name="mapType">
+<enum name="none" value="0"/>
+
+<enum name="normal" value="1"/>
+
+<enum name="satellite" value="2"/>
+
+<enum name="terrain" value="3"/>
+
+<enum name="hybrid" value="4"/>
+
+</attr>
+
+<attr format="float" name="cameraBearing"/>
+
+<attr format="float" name="cameraTargetLat"/>
+
+<attr format="float" name="cameraTargetLng"/>
+
+<attr format="float" name="cameraTilt"/>
+
+<attr format="float" name="cameraZoom"/>
+
+<attr format="boolean" name="liteMode"/>
+
+<attr format="boolean" name="uiCompass"/>
+
+<attr format="boolean" name="uiRotateGestures"/>
+
+<attr format="boolean" name="uiScrollGestures"/>
+
+<attr format="boolean" name="uiScrollGesturesDuringRotateOrZoom"/>
+
+<attr format="boolean" name="uiTiltGestures"/>
+
+<attr format="boolean" name="uiZoomControls"/>
+
+<attr format="boolean" name="uiZoomGestures"/>
+
+<attr format="boolean" name="useViewLifecycle"/>
+
+<attr format="boolean" name="zOrderOnTop"/>
+
+<attr format="boolean" name="uiMapToolbar"/>
+
+<attr format="boolean" name="ambientEnabled"/>
+
+<attr format="float" name="cameraMinZoomPreference"/>
+
+<attr format="float" name="cameraMaxZoomPreference"/>
+
+<attr format="float" name="latLngBoundsSouthWestLatitude"/>
+
+<attr format="float" name="latLngBoundsSouthWestLongitude"/>
+
+<attr format="float" name="latLngBoundsNorthEastLatitude"/>
+
+<attr format="float" name="latLngBoundsNorthEastLongitude"/>
+
+<attr format="color" name="backgroundColor"/>
+
+<attr format="string" name="mapId"/>
+<attr name="mapColorScheme">
+<enum name="light" value="0"/>
+
+<enum name="dark" value="1"/>
+
+<enum name="follow_system" value="2"/>
+
+</attr>
+</declare-styleable>
+    <declare-styleable name="SignInButton"><attr format="reference" name="buttonSize">
+<enum name="standard" value="0"/>
+
+<enum name="wide" value="1"/>
+
+<enum name="icon_only" value="2"/>
+
+</attr>
+<attr format="reference" name="colorScheme">
+<enum name="dark" value="0"/>
+
+<enum name="light" value="1"/>
+
+<enum name="auto" value="2"/>
+
+</attr>
+
+<attr format="reference|string" name="scopeUris"/>
+</declare-styleable>
+</resources>

@@ -1,0 +1,45 @@
+{
+    "logs": [
+        {
+            "outputFile": "br.com.rio40graus.guiascale.app-mergeHomologResources-2:/values-night-v8/values-night-v8.xml",
+            "map": [
+                {
+                    "source": "/home/ricardo/Projetos/rio40/guia/rio40-guia-app-android/app/src/main/res/values-night/colors.xml",
+                    "from": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "104",
+                        "endColumns": "39",
+                        "endOffsets": "139"
+                    },
+                    "to": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "39",
+                        "endOffsets": "90"
+                    }
+                },
+                {
+                    "source": "/home/ricardo/Projetos/rio40/guia/rio40-guia-app-android/app/src/main/res/values-night/themes.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "7",
+                        "endColumns": "12",
+                        "endOffsets": "431"
+                    },
+                    "to": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "95",
+                        "endLines": "8",
+                        "endColumns": "12",
+                        "endOffsets": "471"
+                    }
+                }
+            ]
+        }
+    ]
+}

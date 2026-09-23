@@ -122,6 +122,8 @@ string embarque_horario
 string embarque_iniciar
 string embarque_legenda_atraso
 string embarque_legenda_status
+string embarque_mover_mapa
+string embarque_mover_mapa_sair
 string embarque_no_horario
 string embarque_no_mapa
 string embarque_parar

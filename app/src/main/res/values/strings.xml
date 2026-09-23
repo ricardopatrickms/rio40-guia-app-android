@@ -12,6 +12,8 @@
     <string name="erro_sem_conexao">Sem conexão com o servidor. Confira a internet e tente de novo.</string>
     <string name="erro_muitas_tentativas">Muitas tentativas. Espere um minuto e tente de novo.</string>
     <string name="erro_login">Não foi possível entrar. Confira o login e a senha.</string>
+    <string name="erro_sessao">Sua sessão expirou. Entre de novo.</string>
+    <string name="erro_carregar">Não foi possível carregar os dados. Tente de novo.</string>
 
     <string name="rastreio_ativo">Rastreio ligado</string>
     <string name="rastreio_parado">Rastreio desligado</string>

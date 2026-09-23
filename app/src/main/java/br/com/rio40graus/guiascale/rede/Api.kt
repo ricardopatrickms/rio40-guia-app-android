@@ -751,8 +751,9 @@ object Rede {
  * já distingue senha errada de acesso bloqueado — é essa frase que interessa,
  * e ela estava sendo descartada.
  *
- * Espelha o `translateAuthError` do app web, para os dois dizerem a mesma coisa
- * diante da mesma falha.
+ * Fallback: `erro_login` só na tela de entrar (token vazio). Aqui, 401/403 =
+ * sessão; demais erros = carregar dados — antes tudo virava "Confira o login",
+ * o que assustava no Painel depois de já autenticado.
  */
 fun mensagemDeErro(contexto: Context, erro: Throwable): String = when (erro) {
 
@@ -763,14 +764,36 @@ fun mensagemDeErro(contexto: Context, erro: Throwable): String = when (erro) {
         }.getOrNull()
 
         doServidor ?: when (erro.code()) {
+            401, 403 -> contexto.getString(R.string.erro_sessao)
             429 -> contexto.getString(R.string.erro_muitas_tentativas)
-            else -> contexto.getString(R.string.erro_login)
+            else -> contexto.getString(R.string.erro_carregar)
         }
     }
 
     // Sem rede, DNS fora, servidor local desligado: tudo chega como IOException.
     is java.io.IOException -> contexto.getString(R.string.erro_sem_conexao)
 
+    else -> contexto.getString(R.string.erro_carregar)
+}
+
+/**
+ * Só na tela Entrar: 401/403 sem frase do servidor = login/senha errados.
+ * Depois de autenticado, use [mensagemDeErro] (fala em sessão / carregar dados).
+ */
+fun mensagemDeErroLogin(contexto: Context, erro: Throwable): String = when (erro) {
+    is HttpException -> {
+        val doServidor = runCatching {
+            val corpo = erro.response()?.errorBody()?.string().orEmpty()
+            JSONObject(corpo).optString("error").takeIf { it.isNotBlank() }
+        }.getOrNull()
+
+        doServidor ?: when (erro.code()) {
+            401, 403 -> contexto.getString(R.string.erro_login)
+            429 -> contexto.getString(R.string.erro_muitas_tentativas)
+            else -> contexto.getString(R.string.erro_login)
+        }
+    }
+    is java.io.IOException -> contexto.getString(R.string.erro_sem_conexao)
     else -> contexto.getString(R.string.erro_login)
 }
 
@@ -789,7 +812,8 @@ fun mensagemDeErro(contexto: Context, resposta: Response<*>): String {
     }.getOrNull()
 
     return doServidor ?: when (resposta.code()) {
+        401, 403 -> contexto.getString(R.string.erro_sessao)
         429 -> contexto.getString(R.string.erro_muitas_tentativas)
-        else -> contexto.getString(R.string.erro_generico)
+        else -> contexto.getString(R.string.erro_carregar)
     }
 }

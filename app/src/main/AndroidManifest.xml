@@ -19,9 +19,6 @@
     <!-- Android 14 exige declarar o TIPO do serviço, não só o serviço. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
-    <!-- A notificação permanente do rastreio; obrigatória a partir do 13. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <!-- Religar o rastreio depois que o aparelho reinicia no meio do dia. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
