@@ -92,6 +92,24 @@ android {
             isMinifyEnabled = false
             buildConfigField("String", "API_URL", "\"$apiDeDebug\"")
         }
+        /*
+         * homolog: APK para o pessoal testar contra o ambiente de homologação.
+         *
+         * Fica fixo na API de homologação do guia — que, no servidor, já
+         * conversa com o painel de homologação (RIO40GRAUS_API_URL).
+         * Assinado com a chave de debug e com sufixo no pacote: instala ao lado
+         * do app de produção, sem substituir um pelo outro no celular.
+         *
+         *     ./gradlew assembleHomolog
+         */
+        create("homolog") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".homolog"
+            versionNameSuffix = "-homolog"
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "API_URL", "\"https://api-homol-guide.titanx.ia.br/api/\"")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
