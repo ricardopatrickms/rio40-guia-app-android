@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Azul do painel, o mesmo que o guia vê no app web. -->
-    <color name="ic_launcher_background">#1C4D97</color>
+    <!-- Fundo branco do ícone: a bússola Titan X é azul-marinho e o logo
+         oficial vem sobre branco (assets/logo/logo-rio-cor.png). -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 
     <!-- O fundo do app web (60 14% 97%). Serve de windowBackground para a
          janela nascer nesta cor: sem isso o sistema mostra um branco puro no

@@ -117,6 +117,21 @@ android {
         }
     }
 
+    /*
+     * Nome do arquivo do APK de homologação: app-titan-x-guide.apk
+     * (em vez do padrão app-homolog.apk), para entregar ao pessoal com um nome
+     * que diz o que é. Os demais buildTypes seguem o nome padrão.
+     */
+    applicationVariants.all {
+        val variante = this
+        outputs.all {
+            if (variante.buildType.name == "homolog") {
+                (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                    .outputFileName = "app-titan-x-guide.apk"
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

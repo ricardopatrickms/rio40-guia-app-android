@@ -111,7 +111,6 @@ import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.KpisDoPainel
-import br.com.rio40graus.guiascale.rede.LogoDaAgencia
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
@@ -1331,55 +1330,33 @@ private fun iniciaisDoNome(nome: String?): String {
 }
 
 /**
- * A marca: o logo da agência, o mesmo arquivo que o app web mostra.
+ * A marca: o logo do Titan X, embutido no app.
  *
- * Sai do Supabase, que é onde a tela de Configurações do web o grava — ver
- * LogoDaAgencia. Enquanto ele não chega, e também quando a agência ainda não
- * subiu nenhum, fica o alfinete do próprio ícone sobre o azul da marca; o app
- * abre em estrada sem sinal com frequência, e uma tela de entrada que depende
- * de rede para desenhar não serve.
+ * Antes vinha do servidor (o logo da agência, `LogoDaAgencia`), mas a marca do
+ * produto é fixa — o mesmo símbolo (a bússola/X) que aparece no ícone do app.
+ * Ficar embutido também garante que a tela de entrada desenhe offline, sem
+ * depender de rede.
  *
- * O fundo branco e o `ContentScale.Fit` copiam o `variant="mark"` do web, que
- * é `bg-white object-contain`: logo de agência costuma vir com fundo branco
- * embutido, e recortar ou esticar deformaria a marca de quem contratou.
+ * O fundo branco e o `ContentScale.Fit` mantêm o `variant="mark"`: o logo tem
+ * fundo transparente e o quadrado branco arredondado é o cartão da marca.
  */
 @Composable
 internal fun Marca(tamanho: Dp = 64.dp) {
-    val contexto = LocalContext.current
-    var logo by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(Unit) {
-        logo = LogoDaAgencia.doCache(contexto)
-        LogoDaAgencia.atualizar(contexto)?.let { logo = it }
-    }
-
-    val imagem = logo
     Box(
         modifier = Modifier
             .size(tamanho)
             .clip(FormaCartao)
-            .background(
-                if (imagem != null) Color.White else MaterialTheme.colorScheme.primary
-            ),
+            .background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
-        if (imagem != null) {
-            Image(
-                bitmap = imagem,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(tamanho * 0.1f),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Filled.LocationOn,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(tamanho * 0.53f),
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.logo_titanx),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(tamanho * 0.1f),
+        )
     }
 }
 
@@ -1471,12 +1448,6 @@ private fun CartaoDeEntrada(
                     Text(
                         text = stringResource(R.string.entrar_titulo),
                         style = MaterialTheme.typography.headlineSmall,
-                    )
-                    Text(
-                        text = stringResource(R.string.entrar_explicacao),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
                     )
                 }
 

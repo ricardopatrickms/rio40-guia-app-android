@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GuiaScale</string>
+    <string name="app_name">Titan X Guide</string>
 
     <string name="entrar_titulo">Entrar</string>
     <string name="entrar_explicacao">Entre com o mesmo login e senha do app do guia. O rastreio grava por onde você passou durante o passeio.</string>
