@@ -59,10 +59,17 @@ import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.ReservaEmbarque
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
+import br.com.rio40graus.guiascale.rede.STATUS_NO_SHOW
+import br.com.rio40graus.guiascale.rede.STATUS_PARCIAL
+import br.com.rio40graus.guiascale.rede.STATUS_RESERVADO
 import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.MapaGoogle
 import br.com.rio40graus.guiascale.ui.PinoMapa
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -110,35 +117,64 @@ private fun corDoStatus(id: Int?) = COR_DO_STATUS[id] ?: COR_PADRAO
 private fun resolvida(id: Int?) = id == STATUS_CHECK_IN || id == 3 || id == 8
 
 /**
- * Atraso do embarque, na mesma conta do `computeDelay` do web.
+ * Atraso do embarque — espelho de `computeDelay` + `delayReferenceTime` do web.
  *
- * Abaixo de 15 minutos é aviso; de 15 em diante é atraso de verdade.
+ * Só usa o horário do check-in / parcial / no-show (`checked_in_at`).
+ * Sem esse horário, não mostra atraso (não usa o relógio "agora").
  */
 private data class Atraso(val minutos: Int, val rotulo: String, val grave: Boolean)
 
-private fun calcularAtraso(hora: String?, agora: Long): Atraso? {
-    if (hora.isNullOrBlank()) return null
-    val partes = hora.take(5).split(":")
-    val h = partes.getOrNull(0)?.toIntOrNull() ?: return null
-    val m = partes.getOrNull(1)?.toIntOrNull() ?: return null
+private fun parseCheckedInAtMs(raw: String?): Long? {
+    if (raw.isNullOrBlank()) return null
+    val limpo = raw.trim().replace(' ', 'T')
+    val formatos = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+    )
+    for (padrao in formatos) {
+        runCatching {
+            val sdf = SimpleDateFormat(padrao, Locale.US)
+            return sdf.parse(limpo)?.time
+        }
+    }
+    return null
+}
+
+private fun calcularAtraso(
+    dataIso: String?,
+    hora: String?,
+    checkedInAt: String?,
+): Atraso? {
+    if (dataIso.isNullOrBlank() || hora.isNullOrBlank()) return null
+    val referenciaMs = parseCheckedInAtMs(checkedInAt) ?: return null
+    val partesHora = hora.take(5).split(":")
+    val h = partesHora.getOrNull(0)?.toIntOrNull() ?: return null
+    val m = partesHora.getOrNull(1)?.toIntOrNull() ?: return null
+    val partesData = dataIso.split("-")
+    val ano = partesData.getOrNull(0)?.toIntOrNull() ?: return null
+    val mes = partesData.getOrNull(1)?.toIntOrNull() ?: return null
+    val dia = partesData.getOrNull(2)?.toIntOrNull() ?: return null
 
     val previsto = Calendar.getInstance().apply {
-        timeInMillis = agora
+        set(Calendar.YEAR, ano)
+        set(Calendar.MONTH, mes - 1)
+        set(Calendar.DAY_OF_MONTH, dia)
         set(Calendar.HOUR_OF_DAY, h)
         set(Calendar.MINUTE, m)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
-    val minutos = Math.round((agora - previsto) / 60000.0).toInt()
+    val minutos = Math.round((referenciaMs - previsto) / 60000.0).toInt()
     if (minutos <= 0) return Atraso(minutos, "", false)
 
-    val rotulo = if (minutos >= 60) {
-        "+%dh %02d".format(minutos / 60, minutos % 60)
-    } else {
-        "+$minutos min"
+    val rotulo = when {
+        minutos >= 60 -> "+%dh %02d".format(minutos / 60, minutos % 60)
+        minutos == 1 -> "+1 minuto"
+        else -> "+$minutos minutos"
     }
-
     return Atraso(minutos, rotulo, minutos >= 15)
 }
 
@@ -194,7 +230,6 @@ fun TelaEmbarque(
     var trajetoRemoto by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
 
     val ehHoje = dataSelecionada == hojeIso
-    val agora = remember(recarregar, dataSelecionada) { System.currentTimeMillis() }
     val dataExibicao = remember(dataSelecionada) { formatarDataBr(dataSelecionada) }
     val idsMapas = remember(mapas) { mapas.orEmpty().map { it.id } }
     val mapaParaRastreio = remember(mapas) { mapaDoEmbarque(mapas) }
@@ -470,7 +505,7 @@ fun TelaEmbarque(
 
                         ListaDePontos(
                             pontos = pontos,
-                            agora = agora,
+                            dataIso = dataSelecionada,
                             ehHoje = ehHoje,
                             apenasAtrasados = apenasAtrasados,
                             enviando = enviando,
@@ -492,6 +527,7 @@ fun TelaEmbarque(
                         val atual = pontos.firstOrNull { it.second.id == reserva.id } ?: (mapa to reserva)
                         DialogCheckInEmbarque(
                             reserva = atual.second,
+                            nomeTour = atual.first.tour,
                             bloqueado = atual.first.bloqueado,
                             enviando = enviando == atual.second.id,
                             acoes = AcoesCheckIn(
@@ -953,7 +989,7 @@ private fun LinhaDoBalao(texto: String) {
 @Composable
 private fun ListaDePontos(
     pontos: List<Pair<MapaEmbarque, ReservaEmbarque>>,
-    agora: Long,
+    dataIso: String,
     ehHoje: Boolean,
     apenasAtrasados: Boolean,
     enviando: Int?,
@@ -961,10 +997,10 @@ private fun ListaDePontos(
     aoTocarPonto: (MapaEmbarque, ReservaEmbarque) -> Unit,
     aoEditar: (MapaEmbarque, ReservaEmbarque) -> Unit,
 ) {
+    // Igual ao web: filtro "apenas atrasados" usa previsto × checked_in_at.
     val visiveis = pontos.filter { (_, r) ->
         if (!ehHoje || !apenasAtrasados) return@filter true
-        if (resolvida(r.status?.id)) return@filter false
-        (calcularAtraso(r.hora, agora)?.minutos ?: 0) > 0
+        (calcularAtraso(dataIso, r.hora, r.checked_in_at)?.minutos ?: 0) > 0
     }
 
     Cartao {
@@ -1024,10 +1060,16 @@ private fun ListaDePontos(
                 }
             }
 
-            visiveis.forEach { (mapa, reserva) ->
+            visiveis.forEachIndexed { index, (mapa, reserva) ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                    )
+                }
                 LinhaDoPonto(
                     reserva = reserva,
-                    atraso = if (ehHoje) calcularAtraso(reserva.hora, agora) else null,
+                    // Qualquer dia: atraso = previsto × horário do check-in (web).
+                    atraso = calcularAtraso(dataIso, reserva.hora, reserva.checked_in_at),
                     enviando = enviando == reserva.id,
                     bloqueado = mapa.bloqueado,
                     aoTocar = { aoTocarPonto(mapa, reserva) },
@@ -1048,6 +1090,15 @@ private fun LinhaDoPonto(
     aoEditar: () -> Unit,
 ) {
     val feito = resolvida(reserva.status?.id)
+    val qtdPax = reserva.adt + reserva.chd + reserva.inf
+    // Igual ao web: nome · Apto · N pax · idioma
+    val subtitulo = listOfNotNull(
+        reserva.pax?.takeIf { it.isNotBlank() } ?: "—",
+        reserva.apto?.takeIf { it.isNotBlank() }
+            ?.let { stringResource(R.string.embarque_apto, it) },
+        stringResource(R.string.embarque_lista_pax, qtdPax),
+        reserva.idioma?.takeIf { it.isNotBlank() }?.uppercase(Locale.US),
+    ).joinToString(" · ")
 
     Row(
         modifier = Modifier
@@ -1068,24 +1119,27 @@ private fun LinhaDoPonto(
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = listOfNotNull(
-                    reserva.pax?.takeIf { it.isNotBlank() } ?: "—",
-                    reserva.apto?.takeIf { it.isNotBlank() }
-                        ?.let { stringResource(R.string.embarque_apto, it) },
-                    reserva.bairro?.takeIf { it.isNotBlank() },
-                ).joinToString(" · "),
+                text = subtitulo,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             if (!bloqueado) {
-                Box(modifier = Modifier.padding(top = 6.dp)) {
-                    BotaoSecundario(
-                        texto = stringResource(R.string.check_in_editar),
-                        aoClicar = aoEditar,
-                        habilitado = !enviando,
-                    )
-                }
+                // Web: Button size="sm" h-7 text-[11px] variant="outline" — compacto.
+                Text(
+                    text = stringResource(R.string.check_in_editar),
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                        .clickable(enabled = !enviando, onClick = aoEditar)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 
@@ -1097,9 +1151,9 @@ private fun LinhaDoPonto(
             Selo(reserva.status?.id, reserva.status?.nome)
 
             when {
-                atraso != null && atraso.minutos > 0 -> Etiqueta(
+                atraso != null && atraso.minutos > 0 -> EtiquetaAtraso(
                     texto = atraso.rotulo,
-                    cor = if (atraso.grave) Color(0xFFDC2626) else Color(0xFF3B82F6),
+                    grave = atraso.grave,
                 )
                 // "No horário" só enquanto o embarque não aconteceu: depois de
                 // resolvido, o selo já diz o que houve.
@@ -1121,26 +1175,65 @@ private fun LinhaDoPonto(
     }
 }
 
-/** O selo de status, no mesmo formato do SeloStatus do web. */
-@Composable
-private fun Selo(statusId: Int?, nome: String?) {
-    Etiqueta(texto = nome.orEmpty(), cor = corDoStatus(statusId))
+/** Cores do SeloStatus do web (fundo / texto / borda). */
+private fun coresSeloLista(statusId: Int?): Triple<Color, Color, Color> = when (statusId) {
+    STATUS_CHECK_IN -> Triple(Color(0xFFD1FAE5), Color(0xFF047857), Color(0xFF6EE7B7))
+    STATUS_PARCIAL -> Triple(Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFCD34D))
+    STATUS_NO_SHOW -> Triple(Color(0xFFFCE7EB), Color(0xFFDA4553), Color(0xFFF5A3AB))
+    STATUS_RESERVADO -> Triple(Color(0xFFDBEAFE), Color(0xFF1D4ED8), Color(0xFF93C5FD))
+    else -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), Color(0xFFCBD5E1))
 }
 
+/** O selo de status, no mesmo formato do SeloStatus do web (borda mais escura). */
 @Composable
-private fun Etiqueta(texto: String, cor: Color) {
-    if (texto.isBlank()) return
-
+private fun Selo(statusId: Int?, nome: String?) {
+    val texto = nome?.takeIf { it.isNotBlank() } ?: return
+    val (fundo, textoCor, borda) = coresSeloLista(statusId)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(cor.copy(alpha = 0.14f))
-            .padding(horizontal = 7.dp, vertical = 3.dp),
+            .heightIn(min = 20.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, borda, RoundedCornerShape(4.dp))
+            .background(fundo)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = texto,
-            style = MaterialTheme.typography.labelMedium,
-            color = cor,
+            text = texto.uppercase(Locale.getDefault()),
+            color = textoCor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/** Badge de atraso — delayBadgeClasses do web (borda mais escura que o fundo). */
+@Composable
+private fun EtiquetaAtraso(texto: String, grave: Boolean) {
+    if (texto.isBlank()) return
+    val (fundo, textoCor, borda) = if (grave) {
+        Triple(Color(0xFFFEE2E2), Color(0xFFB91C1C), Color(0xFFFCA5A5))
+    } else {
+        Triple(Color(0xFFDBEAFE), Color(0xFF1E40AF), Color(0xFF93C5FD))
+    }
+    Box(
+        modifier = Modifier
+            .heightIn(min = 20.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .border(1.dp, borda, RoundedCornerShape(4.dp))
+            .background(fundo)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = texto.uppercase(Locale.getDefault()),
+            color = textoCor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

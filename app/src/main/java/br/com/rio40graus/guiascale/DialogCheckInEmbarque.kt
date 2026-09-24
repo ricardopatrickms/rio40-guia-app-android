@@ -1,5 +1,6 @@
 package br.com.rio40graus.guiascale
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,17 +9,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
@@ -26,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,11 +51,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import br.com.rio40graus.guiascale.rede.FormaPagamento
+import br.com.rio40graus.guiascale.ui.tema.FormaBotao
+import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
@@ -97,6 +110,8 @@ private data class OpcaoStatus(
 @Composable
 fun DialogCheckInEmbarque(
     reserva: ReservaEmbarque,
+    /** Nome do tour do mapa — igual ao `tour_name` do web (não o passeio/produto). */
+    nomeTour: String? = null,
     bloqueado: Boolean,
     enviando: Boolean,
     acoes: AcoesCheckIn,
@@ -285,23 +300,53 @@ fun DialogCheckInEmbarque(
     AlertDialog(
         onDismissRequest = { if (!enviando && !salvandoStatus && !salvandoPagamento) aoFechar() },
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.checkin_titulo), style = MaterialTheme.typography.titleLarge)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_map_pin),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        stringResource(R.string.checkin_titulo),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                // Igual ao web (DialogDescription): hotel, pax/apto e tour centralizados.
                 Text(
                     reserva.embarque.orEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
                 )
                 Text(
                     buildString {
                         append(reserva.pax?.takeIf { it.isNotBlank() } ?: stringResource(R.string.checkin_cliente_ausente))
                         reserva.apto?.takeIf { it.isNotBlank() }?.let { append(" · Apto $it") }
                     },
+                    modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
-                reserva.passeio?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Web usa `tour_name` (mapa.tour), não o produto/passeio (Premium Mais).
+                nomeTour?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        it,
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         },
@@ -313,14 +358,30 @@ fun DialogCheckInEmbarque(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_clock),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
                     Text(
                         reserva.hora?.take(5) ?: "--:--",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     if (statusAtual == STATUS_CHECK_IN) {
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_lucide_check_circle_2),
+                            contentDescription = null,
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(16.dp),
+                        )
                         Text(
                             stringResource(R.string.check_in_feito),
                             style = MaterialTheme.typography.labelMedium,
@@ -330,7 +391,10 @@ fun DialogCheckInEmbarque(
                     }
                 }
 
-                Secao(titulo = stringResource(R.string.checkin_capacidade)) {
+                Secao(
+                    titulo = stringResource(R.string.checkin_capacidade),
+                    icone = R.drawable.ic_lucide_users,
+                ) {
                     Text(paxTexto, style = MaterialTheme.typography.bodyMedium)
                     Text(
                         stringResource(R.string.checkin_total_pax, totalPax),
@@ -339,7 +403,10 @@ fun DialogCheckInEmbarque(
                     )
                 }
 
-                Secao(titulo = stringResource(R.string.checkin_status)) {
+                Secao(
+                    titulo = stringResource(R.string.checkin_status),
+                    icone = R.drawable.ic_lucide_clipboard_check,
+                ) {
                     SeletorStatus(
                         atual = opcaoAtual,
                         opcoes = opcoesStatus.filter { it.permitido || it.id == statusAtual },
@@ -349,7 +416,10 @@ fun DialogCheckInEmbarque(
                     )
                 }
 
-                Secao(titulo = stringResource(R.string.checkin_pagamentos)) {
+                Secao(
+                    titulo = stringResource(R.string.checkin_pagamentos),
+                    icone = R.drawable.ic_lucide_wallet,
+                ) {
                     if (carregandoPag) {
                         Text(
                             stringResource(R.string.checkin_carregando_formas),
@@ -363,6 +433,11 @@ fun DialogCheckInEmbarque(
                             color = MaterialTheme.colorScheme.error,
                         )
                     } else {
+                        Text(
+                            stringResource(R.string.checkin_formas_pagamento),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         if (entradas.isEmpty()) {
                             Text(
                                 stringResource(R.string.checkin_sem_forma),
@@ -406,14 +481,31 @@ fun DialogCheckInEmbarque(
                                 aoRemover = { entradas.removeAt(idx) },
                             )
                         }
+                        // Web: outline size="sm", alinhado à esquerda, canto ~md (não pílula).
                         OutlinedButton(
                             onClick = { entradas.add(EntradaPagamento()) },
                             enabled = !bloqueado,
-                            modifier = Modifier.fillMaxWidth(),
+                            shape = FormaBotaoPequeno,
+                            modifier = Modifier
+                                .align(Alignment.Start)
+                                .height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outline,
+                            ),
                         ) {
-                            Text("+ ", fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.checkin_adicionar_forma))
+                            Text("+ ", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                stringResource(R.string.checkin_adicionar_forma),
+                                fontSize = 12.sp,
+                            )
                         }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
 
                         ResumoFinanceiro(
                             recebido = somaRecebido,
@@ -422,47 +514,60 @@ fun DialogCheckInEmbarque(
                             faltaOuExcesso = centavos(reserva.a_receber - somaBases),
                         )
 
-                        Button(
-                            onClick = {
-                                salvandoPagamento = true
-                                erro = null
-                                val itens = entradas
-                                    .filter { it.formaId != null && it.valor > 0 }
-                                    .map {
-                                        ItemPagamento(
-                                            forma_id = it.formaId!!,
-                                            valor = centavos(it.valor),
-                                            parcela_id = if (ehCredito(it)) it.parcelaId else null,
-                                            pag_id = it.pagId,
-                                        )
-                                    }
-                                acoes.salvarPagamentos(itens) { falha ->
-                                    salvandoPagamento = false
-                                    if (falha == null) aoRecarregar() else erro = falha
-                                }
-                            },
-                            enabled = !bloqueado && !salvandoPagamento,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
                         ) {
-                            if (salvandoPagamento) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary,
+                            Button(
+                                onClick = {
+                                    salvandoPagamento = true
+                                    erro = null
+                                    val itens = entradas
+                                        .filter { it.formaId != null && it.valor > 0 }
+                                        .map {
+                                            ItemPagamento(
+                                                forma_id = it.formaId!!,
+                                                valor = centavos(it.valor),
+                                                parcela_id = if (ehCredito(it)) it.parcelaId else null,
+                                                pag_id = it.pagId,
+                                            )
+                                        }
+                                    acoes.salvarPagamentos(itens) { falha ->
+                                        salvandoPagamento = false
+                                        if (falha == null) aoRecarregar() else erro = falha
+                                    }
+                                },
+                                enabled = !bloqueado && !salvandoPagamento,
+                                shape = FormaBotao,
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            ) {
+                                if (salvandoPagamento) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    stringResource(R.string.checkin_salvar_pagamento),
+                                    fontSize = 13.sp,
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
                             }
-                            Text(stringResource(R.string.checkin_salvar_pagamento))
                         }
                     }
                 }
 
-                Secao(titulo = stringResource(R.string.checkin_idioma)) {
+                Secao(
+                    titulo = stringResource(R.string.checkin_idioma),
+                    icone = R.drawable.ic_lucide_languages,
+                ) {
                     MenuSimples(
-                        rotulo = idiomas.firstOrNull { it.id == idiomaId }?.let {
-                            "${it.codigo ?: ""} ${it.nome.orEmpty()}".trim()
-                        } ?: stringResource(R.string.checkin_selecionar_idioma),
-                        opcoes = idiomas.map { it.id to "${it.codigo ?: ""} ${it.nome.orEmpty()}".trim() },
+                        rotulo = idiomas.firstOrNull { it.id == idiomaId }?.let { rotuloIdiomaBandeira(it) }
+                            ?: stringResource(R.string.checkin_selecionar_idioma),
+                        opcoes = idiomas.map { it.id to rotuloIdiomaBandeira(it) },
+                        selecionadoId = idiomaId,
                         bloqueado = bloqueado || salvandoIdioma,
                         aoEscolher = { id ->
                             idiomaId = id
@@ -605,9 +710,31 @@ fun DialogCheckInEmbarque(
 }
 
 @Composable
-private fun Secao(titulo: String, conteudo: @Composable () -> Unit) {
+private fun Secao(
+    titulo: String,
+    icone: Int? = null,
+    conteudo: @Composable () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(titulo, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (icone != null) {
+                Icon(
+                    painter = painterResource(icone),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Text(
+                titulo,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+            )
+        }
         conteudo()
     }
 }
@@ -668,6 +795,7 @@ private fun MenuSimples(
     rotulo: String,
     opcoes: List<Pair<Int, String>>,
     bloqueado: Boolean = false,
+    selecionadoId: Int? = null,
     aoEscolher: (Int) -> Unit,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -686,8 +814,26 @@ private fun MenuSimples(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             opcoes.forEach { (id, nome) ->
+                val selecionado = id == selecionadoId
                 DropdownMenuItem(
                     text = { Text(nome) },
+                    leadingIcon = if (selecionado) {
+                        {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    modifier = if (selecionado) {
+                        Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    } else {
+                        Modifier
+                    },
                     onClick = {
                         aberto = false
                         aoEscolher(id)
@@ -696,6 +842,22 @@ private fun MenuSimples(
             }
         }
     }
+}
+
+/** Igual ao web (`LANG_FLAG` + código): 🇺🇸 EN */
+private fun rotuloIdiomaBandeira(opcao: IdiomaOpcao): String {
+    val codigo = opcao.codigo?.trim()?.uppercase(Locale.US)?.take(2).orEmpty()
+    if (codigo.isEmpty()) return opcao.nome.orEmpty()
+    val bandeira = when (codigo) {
+        "PT", "BR" -> "🇧🇷"
+        "EN" -> "🇺🇸"
+        "ES" -> "🇪🇸"
+        "FR" -> "🇫🇷"
+        "IT" -> "🇮🇹"
+        "DE" -> "🇩🇪"
+        else -> "🏳️"
+    }
+    return "$bandeira  $codigo"
 }
 
 @Composable
@@ -830,55 +992,80 @@ private fun ResumoFinanceiro(
         diferenca < 0 -> MaterialTheme.colorScheme.error
         else -> Color(0xFF1D4ED8)
     }
+    val formaCard = RoundedCornerShape(6.dp)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(R.string.checkin_resumo).uppercase(),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
         )
-        // Empilhados: em largura de celular, dois cards lado a lado quebram
-        // o "R$ 100,00" no meio (vírgula numa linha, centavos na outra).
-        Column(
+        // Igual ao web (grid-cols-2): mesma largura e mesma altura nos dois cards.
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            LinhaResumo(
-                rotulo = stringResource(R.string.checkin_recebido),
-                valor = brl(recebido),
-            )
-            LinhaResumo(
-                rotulo = rotulo,
-                valor = brl(abs(faltaOuExcesso)),
-                cor = cor,
-                negrito = true,
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
-                .padding(12.dp),
-        ) {
-            Text(
-                stringResource(R.string.checkin_a_receber).uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                brl(aReceber),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                softWrap = false,
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, formaCard)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        formaCard,
+                    )
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LinhaResumo(
+                    rotulo = stringResource(R.string.checkin_recebido),
+                    valor = brl(recebido),
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                LinhaResumo(
+                    rotulo = rotulo,
+                    valor = brl(abs(faltaOuExcesso)),
+                    cor = cor,
+                    negrito = true,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        formaCard,
+                    )
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                        formaCard,
+                    )
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    stringResource(R.string.checkin_a_receber).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    brl(aReceber),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

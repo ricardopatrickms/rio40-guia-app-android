@@ -83,6 +83,7 @@
     <string name="check_in">Check-in</string>
     <string name="check_in_feito">Check-in feito</string>
     <string name="embarque_apto">Apto %1$s</string>
+    <string name="embarque_lista_pax">%1$d pax</string>
     <string name="rastreio_ligado_pelo_checkin">Rastreio ligado no primeiro check-in.</string>
 
     <string name="checkin_titulo">Check-in do cliente</string>
@@ -103,6 +104,7 @@
     <string name="checkin_parcial_invalido">Não pode faltar mais gente do que a reserva tem.</string>
     <string name="checkin_carregando_formas">Carregando formas de pagamento…</string>
     <string name="checkin_formas_erro">Não foi possível carregar as formas de pagamento.</string>
+    <string name="checkin_formas_pagamento">Formas de pagamento</string>
     <string name="checkin_sem_forma">Nenhuma forma adicionada. Use \"Adicionar forma\" para dividir o pagamento.</string>
     <string name="checkin_adicionar_forma">Adicionar forma</string>
     <string name="checkin_salvar_pagamento">Salvar pagamento</string>
@@ -134,6 +136,11 @@
     <string name="mapa_embarque_apoio">Apoio</string>
     <string name="mapa_embarque_tour">TOUR</string>
     <string name="mapa_embarque_ocupacao">OCUPAÇÃO DO DIA:</string>
+    <string name="mapa_embarque_ocupacao_de"> de %1$d</string>
+    <string name="mapa_embarque_capacidade_veiculo_acima">Capacidade do veículo: %1$d · %2$d acima</string>
+    <string name="mapa_embarque_capacidade_veiculo_lotado">Capacidade do veículo: %1$d · lotado</string>
+    <string name="mapa_embarque_capacidade_veiculo_livre">Capacidade do veículo: %1$d · %2$d livre</string>
+    <string name="mapa_embarque_capacidade_veiculo_livres">Capacidade do veículo: %1$d · %2$d livres</string>
     <string name="mapa_embarque_adultos">ADULTOS:</string>
     <string name="mapa_embarque_chd">CHD\'s:</string>
     <string name="mapa_embarque_inf">INF:</string>

@@ -629,6 +629,7 @@ fun TelaMapaEmbarque(
             val atual = mapa.reservas.firstOrNull { it.id == reserva.id } ?: reserva
             DialogCheckInEmbarque(
                 reserva = atual,
+                nomeTour = mapa.tour,
                 bloqueado = mapa.bloqueado,
                 enviando = enviando == atual.id,
                 acoes = AcoesCheckIn(
@@ -926,18 +927,52 @@ private fun formatarDataOcorrencia(valor: String?): String? {
     return SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(data)
 }
 
-/** Igual a `presentes()` do web (paxDaReserva.ts), usando ids de status da API. */
-private fun paxPresentesDaReserva(r: ReservaEmbarque): Int {
+/** Igual a `presentes()` / `reservados()` do web (paxDaReserva.ts). */
+private data class PaxPorCategoria(
+    val adt: Int = 0,
+    val chd: Int = 0,
+    val inf: Int = 0,
+    val jovem: Int = 0,
+    val idoso: Int = 0,
+) {
+    val total: Int get() = adt + chd + inf + jovem + idoso
+}
+
+private fun paxReservadosDaReserva(r: ReservaEmbarque): PaxPorCategoria =
+    PaxPorCategoria(r.adt, r.chd, r.inf, r.jovem, r.idoso)
+
+private fun paxPresentesCategorias(r: ReservaEmbarque): PaxPorCategoria {
     val statusId = r.status?.id
-    if (statusId == STATUS_NO_SHOW) return 0
-    val total = r.adt + r.chd + r.inf + r.jovem + r.idoso
+    if (statusId == STATUS_NO_SHOW) return PaxPorCategoria()
+    val total = paxReservadosDaReserva(r)
     if (statusId != STATUS_PARCIAL) return total
     val p = r.parcial
-    return maxOf(0, r.adt - (p?.adulto ?: 0)) +
-        maxOf(0, r.chd - (p?.chd ?: 0)) +
-        maxOf(0, r.inf - (p?.infantil ?: 0)) +
-        maxOf(0, r.jovem - (p?.jovem ?: 0)) +
-        maxOf(0, r.idoso - (p?.idoso ?: 0))
+    return PaxPorCategoria(
+        adt = maxOf(0, r.adt - (p?.adulto ?: 0)),
+        chd = maxOf(0, r.chd - (p?.chd ?: 0)),
+        inf = maxOf(0, r.inf - (p?.infantil ?: 0)),
+        jovem = maxOf(0, r.jovem - (p?.jovem ?: 0)),
+        idoso = maxOf(0, r.idoso - (p?.idoso ?: 0)),
+    )
+}
+
+/** Igual a `presentes()` do web (paxDaReserva.ts), usando ids de status da API. */
+private fun paxPresentesDaReserva(r: ReservaEmbarque): Int = paxPresentesCategorias(r).total
+
+private fun acumularPax(lista: List<PaxPorCategoria>): PaxPorCategoria {
+    var adt = 0
+    var chd = 0
+    var inf = 0
+    var jovem = 0
+    var idoso = 0
+    lista.forEach {
+        adt += it.adt
+        chd += it.chd
+        inf += it.inf
+        jovem += it.jovem
+        idoso += it.idoso
+    }
+    return PaxPorCategoria(adt, chd, inf, jovem, idoso)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1025,8 +1060,20 @@ private fun ChipAtraso(
 
 @Composable
 private fun SecaoTour(mapa: MapaEmbarque) {
-    val totais = mapa.totais
     val reservas = mapa.reservas
+    val paxPresentes = remember(reservas) {
+        acumularPax(reservas.map { paxPresentesCategorias(it) })
+    }
+    val paxReservados = remember(reservas) {
+        acumularPax(reservas.map { paxReservadosDaReserva(it) })
+    }
+    val totalPresentes = paxPresentes.total
+    val totalReservados = paxReservados.total
+    // Infantil não ocupa lugar (regra do web / cliente).
+    val capacidadeVeiculo = mapa.veiculo?.capacidade?.takeIf { it > 0 }
+    val lugaresOcupados = totalPresentes - paxPresentes.inf
+    val vagasLivres = capacidadeVeiculo?.let { it - lugaresOcupados }
+
     val saida = reservas.mapNotNull { it.hora }.minOrNull()?.take(5) ?: "--:--"
     // Igual ao web (MapaEmbarque.tsx): a_receber já inclui taxas de cais;
     // só se soma a taxa de cartão dos pagamentos lançados (taxaCartaoLancada).
@@ -1045,19 +1092,99 @@ private fun SecaoTour(mapa: MapaEmbarque) {
         }
     }
     val saldo = round2(totalAReceber - totalRecebido)
-    val ocupacao = mapa.ocupacao?.pax ?: totais?.pax ?: reservas.sumOf { it.total ?: 0 }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        LinhaCyan(stringResource(R.string.mapa_embarque_ocupacao), ocupacao.toString())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LinhaCyan(stringResource(R.string.mapa_embarque_adultos), (totais?.adt ?: 0).toString())
-            LinhaCyan(stringResource(R.string.mapa_embarque_chd), (totais?.chd ?: 0).toString())
-            LinhaCyan(stringResource(R.string.mapa_embarque_inf), (totais?.inf ?: 0).toString())
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                buildString {
+                    append(stringResource(R.string.mapa_embarque_ocupacao))
+                    append(' ')
+                    append(totalPresentes)
+                    if (totalPresentes != totalReservados) {
+                        append(stringResource(R.string.mapa_embarque_ocupacao_de, totalReservados))
+                    }
+                },
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+            )
         }
-        if ((totais?.jovem ?: 0) > 0 || (totais?.idoso ?: 0) > 0) {
+        vagasLivres?.let { livres ->
+            val capacidade = capacidadeVeiculo!!
+            val (fundo, textoCor, borda) = when {
+                livres < 0 -> Triple(Color(0xFFFEE2E2), Color(0xFFB91C1C), Color(0xFFFCA5A5))
+                livres == 0 -> Triple(Color(0xFFFEF3C7), Color(0xFF92400E), Color(0xFFFCD34D))
+                else -> Triple(Color(0xFFDCFCE7), Color(0xFF15803D), Color(0xFF86EFAC))
+            }
+            val rotulo = when {
+                livres < 0 -> stringResource(
+                    R.string.mapa_embarque_capacidade_veiculo_acima,
+                    capacidade,
+                    -livres,
+                )
+                livres == 0 -> stringResource(
+                    R.string.mapa_embarque_capacidade_veiculo_lotado,
+                    capacidade,
+                )
+                livres == 1 -> stringResource(
+                    R.string.mapa_embarque_capacidade_veiculo_livre,
+                    capacidade,
+                    livres,
+                )
+                else -> stringResource(
+                    R.string.mapa_embarque_capacidade_veiculo_livres,
+                    capacidade,
+                    livres,
+                )
+            }
+            Text(
+                text = rotulo.uppercase(Locale.getDefault()),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, borda, RoundedCornerShape(4.dp))
+                    .background(fundo)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                color = textoCor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LinhaCyanComReferencia(
+                stringResource(R.string.mapa_embarque_adultos),
+                paxPresentes.adt,
+                paxReservados.adt,
+            )
+            LinhaCyanComReferencia(
+                stringResource(R.string.mapa_embarque_chd),
+                paxPresentes.chd,
+                paxReservados.chd,
+            )
+            LinhaCyanComReferencia(
+                stringResource(R.string.mapa_embarque_inf),
+                paxPresentes.inf,
+                paxReservados.inf,
+            )
+        }
+        if (paxPresentes.jovem > 0 || paxPresentes.idoso > 0 ||
+            paxReservados.jovem > 0 || paxReservados.idoso > 0
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinhaCyan(stringResource(R.string.mapa_embarque_jovem), (totais?.jovem ?: 0).toString())
-                LinhaCyan(stringResource(R.string.mapa_embarque_idoso), (totais?.idoso ?: 0).toString())
+                LinhaCyanComReferencia(
+                    stringResource(R.string.mapa_embarque_jovem),
+                    paxPresentes.jovem,
+                    paxReservados.jovem,
+                )
+                LinhaCyanComReferencia(
+                    stringResource(R.string.mapa_embarque_idoso),
+                    paxPresentes.idoso,
+                    paxReservados.idoso,
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -1316,7 +1443,10 @@ private fun BlocoFornecedor(
                 fontWeight = FontWeight.Medium,
             )
         }
-        f.observacao?.takeIf { it.isNotBlank() && it != f.atividade }?.let {
+        // Igual ao web (`s.observations`): descrição abaixo do pagamento.
+        // No acerto a API manda atividade === descricao; não filtrar isso,
+        // senão some o texto que o guia lê embaixo de "Informar pagamento".
+        f.observacao?.takeIf { it.isNotBlank() }?.let {
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,
@@ -2278,6 +2408,34 @@ private fun LinhaCyan(rotulo: String, valor: String, destaque: Boolean = false) 
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
         )
+    }
+}
+
+/** Presentes com referência da reserva (ex.: 41/44), igual ao web. */
+@Composable
+private fun LinhaCyanComReferencia(rotulo: String, presentes: Int, reservados: Int) {
+    Row {
+        Text(
+            rotulo,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "$presentes",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        if (presentes != reservados) {
+            Text(
+                "/$reservados",
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
