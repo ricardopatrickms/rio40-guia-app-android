@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,8 +51,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import br.com.rio40graus.guiascale.rede.FormaPagamento
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
@@ -66,10 +72,6 @@ import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.MapaGoogle
 import br.com.rio40graus.guiascale.ui.PinoMapa
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -405,16 +407,27 @@ fun TelaEmbarque(
                 // Igual ao web: mapa com ~60vh (mínimo 380dp) — a lista fica abaixo da dobra.
                 val alturaMapa = max(maxHeight * 0.60f, 380.dp)
 
-                // Modo "mover o mapa" (botão no canto do mapa): com ele ligado a
-                // tela para de rolar, senão a rolagem fica com o arraste vertical
-                // e o guia não consegue andar pelo mapa.
-                var moverMapa by remember { mutableStateOf(false) }
+                // Expandir em tela cheia: no mapa embutido o scroll disputa o
+                // dedo; aberto, arrastar e zoom ficam livres (botão X fecha).
+                var mapaExpandido by remember { mutableStateOf(false) }
+
+                val pinos = remember(comCoordenada) {
+                    comCoordenada.map { (_, r) ->
+                        PinoMapa(
+                            id = r.id,
+                            latitude = r.latitude!!,
+                            longitude = r.longitude!!,
+                            cor = corDoStatus(r.status?.id).toArgb(),
+                            titulo = r.embarque.orEmpty(),
+                        )
+                    }
+                }
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState(), enabled = !moverMapa)
+                            .verticalScroll(rememberScrollState())
                             .padding(horizontal = 12.dp)
                             .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -445,26 +458,13 @@ fun TelaEmbarque(
                                 .height(alturaMapa)
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(
-                                    // Borda destacada enquanto o mapa está "preso" ao dedo.
-                                    width = if (moverMapa) 2.dp else 1.dp,
-                                    color = if (moverMapa) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant
-                                    },
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant,
                                     shape = RoundedCornerShape(12.dp),
                                 ),
                         ) {
                             MapaGoogle(
-                                pinos = comCoordenada.map { (_, r) ->
-                                    PinoMapa(
-                                        id = r.id,
-                                        latitude = r.latitude!!,
-                                        longitude = r.longitude!!,
-                                        cor = corDoStatus(r.status?.id).toArgb(),
-                                        titulo = r.embarque.orEmpty(),
-                                    )
-                                },
+                                pinos = pinos,
                                 minhaPosicao = posicaoMapa?.let { it.latitude to it.longitude },
                                 trajeto = trajetoMapa,
                                 aoTocarPino = { selecionada = it },
@@ -473,8 +473,7 @@ fun TelaEmbarque(
                                 paddingTopo = 8.dp,
                                 paddingBase = 8.dp,
                                 aoPedirLocalizacao = aoPedirLocalizacao,
-                                moverMapa = moverMapa,
-                                aoAlternarMoverMapa = { moverMapa = !moverMapa },
+                                aoExpandirMapa = { mapaExpandido = true },
                                 modifier = Modifier.fillMaxSize(),
                             )
 
@@ -521,6 +520,50 @@ fun TelaEmbarque(
                                 editando = mapa to reserva
                             },
                         )
+                    }
+
+                    if (mapaExpandido) {
+                        Dialog(
+                            onDismissRequest = { mapaExpandido = false },
+                            properties = DialogProperties(
+                                usePlatformDefaultWidth = false,
+                                decorFitsSystemWindows = false,
+                            ),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black),
+                            ) {
+                                MapaGoogle(
+                                    pinos = pinos,
+                                    minhaPosicao = posicaoMapa?.let { it.latitude to it.longitude },
+                                    trajeto = trajetoMapa,
+                                    aoTocarPino = { selecionada = it },
+                                    focarEm = selecionada,
+                                    focoPedido = focoPedido,
+                                    paddingTopo = 8.dp,
+                                    paddingBase = 8.dp,
+                                    aoPedirLocalizacao = aoPedirLocalizacao,
+                                    aoFecharExpandido = { mapaExpandido = false },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+
+                                pontos.firstOrNull { it.second.id == selecionada }?.let { (mapa, reserva) ->
+                                    BalaoDoPonto(
+                                        reserva = reserva,
+                                        bloqueado = mapa.bloqueado,
+                                        aoFechar = { selecionada = null },
+                                        aoEditar = {
+                                            mapaExpandido = false
+                                            selecionada = null
+                                            editando = mapa to reserva
+                                        },
+                                        modifier = Modifier.align(Alignment.Center),
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     editando?.let { (mapa, reserva) ->

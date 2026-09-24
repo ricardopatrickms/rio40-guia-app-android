@@ -10,8 +10,11 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -109,12 +112,12 @@ fun MapaGoogle(
     /** Sem permissão de GPS: o toque no botão pede a liberação. */
     aoPedirLocalizacao: () -> Unit = {},
     /**
-     * Modo "mover o mapa" ligado. Quem decide é a tela, porque é ela que
-     * precisa parar de rolar — ver TelaEmbarque. Sem [aoAlternarMoverMapa] o
-     * botão não aparece.
+     * Expandir o mapa em tela cheia. Sem callback o botão não aparece.
+     * Em tela cheia use [aoFecharExpandido] (botão X) — o arraste do mapa
+     * funciona sozinho, sem modo "mover".
      */
-    moverMapa: Boolean = false,
-    aoAlternarMoverMapa: (() -> Unit)? = null,
+    aoExpandirMapa: (() -> Unit)? = null,
+    aoFecharExpandido: (() -> Unit)? = null,
 ) {
     val contexto = LocalContext.current
     val density = LocalDensity.current
@@ -274,93 +277,101 @@ fun MapaGoogle(
             }
         }
 
-        // Igual ao web: canto superior direito do mapa.
-        FloatingActionButton(
-            onClick = {
-                escopo.launch {
-                    val pos = minhaPosicao
-                        ?: obterPosicaoAgora(contexto)
-                        ?: trajeto.lastOrNull()
-
-                    if (pos == null) {
-                        Toast.makeText(
-                            contexto,
-                            contexto.getString(R.string.embarque_sem_localizacao),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                        aoPedirLocalizacao()
-                        return@launch
-                    }
-
-                    if (!mapaPronto) return@launch
-                    runCatching {
-                        camera.animate(
-                            CameraUpdateFactory.newLatLngZoom(
-                                LatLng(pos.first, pos.second),
-                                16f,
-                            ),
-                        )
-                    }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .zIndex(2f)
-                .padding(end = 12.dp, top = 12.dp)
-                .size(40.dp),
-            shape = FloatingActionButtonDefaults.smallShape,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = if (minhaPosicao != null) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.MyLocation,
-                contentDescription = stringResource(R.string.embarque_centralizar),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-
         /*
-         * Mover o mapa.
+         * FABs no canto inferior direito.
          *
-         * A tela do embarque rola inteira, e a rolagem ficava com o arraste para
-         * cima e para baixo — o guia não conseguia andar pelo mapa. Ligado, a
-         * tela para de rolar e o arraste vai todo para o mapa; desligado, fica
-         * como sempre foi. Destacado quando ativo, para o guia saber por que a
-         * tela parou de rolar.
+         * Em tela cheia o Dialog vai sob a barra de gestos e o inset do
+         * Window às vezes vem zerado — por isso o padding de baixo sobe
+         * (24.dp) e ainda aplicamos navigationBarsPadding quando existir.
          */
-        if (aoAlternarMoverMapa != null) {
+        val expandido = aoFecharExpandido != null
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .zIndex(2f)
+                .then(if (expandido) Modifier.navigationBarsPadding() else Modifier)
+                .padding(end = 12.dp, bottom = if (expandido) 48.dp else 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
             FloatingActionButton(
-                onClick = aoAlternarMoverMapa,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .zIndex(2f)
-                    .padding(end = 12.dp, top = 60.dp)
-                    .size(40.dp),
-                shape = FloatingActionButtonDefaults.smallShape,
-                containerColor = if (moverMapa) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surface
+                onClick = {
+                    escopo.launch {
+                        val pos = minhaPosicao
+                            ?: obterPosicaoAgora(contexto)
+                            ?: trajeto.lastOrNull()
+
+                        if (pos == null) {
+                            Toast.makeText(
+                                contexto,
+                                contexto.getString(R.string.embarque_sem_localizacao),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            aoPedirLocalizacao()
+                            return@launch
+                        }
+
+                        if (!mapaPronto) return@launch
+                        runCatching {
+                            camera.animate(
+                                CameraUpdateFactory.newLatLngZoom(
+                                    LatLng(pos.first, pos.second),
+                                    16f,
+                                ),
+                            )
+                        }
+                    }
                 },
-                contentColor = if (moverMapa) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
+                modifier = Modifier.size(40.dp),
+                shape = FloatingActionButtonDefaults.smallShape,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = if (minhaPosicao != null) {
                     MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
             ) {
                 Icon(
-                    imageVector = if (moverMapa) Icons.Filled.Close else Icons.Filled.OpenWith,
-                    contentDescription = stringResource(
-                        if (moverMapa) R.string.embarque_mover_mapa_sair else R.string.embarque_mover_mapa,
-                    ),
+                    imageVector = Icons.Filled.MyLocation,
+                    contentDescription = stringResource(R.string.embarque_centralizar),
                     modifier = Modifier.size(18.dp),
                 )
+            }
+
+            when {
+                aoFecharExpandido != null -> {
+                    FloatingActionButton(
+                        onClick = aoFecharExpandido,
+                        modifier = Modifier.size(40.dp),
+                        shape = FloatingActionButtonDefaults.smallShape,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.embarque_fechar_mapa),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                aoExpandirMapa != null -> {
+                    FloatingActionButton(
+                        onClick = aoExpandirMapa,
+                        modifier = Modifier.size(40.dp),
+                        shape = FloatingActionButtonDefaults.smallShape,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.OpenWith,
+                            contentDescription = stringResource(R.string.embarque_expandir_mapa),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
             }
         }
     }
