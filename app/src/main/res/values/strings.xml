@@ -38,7 +38,7 @@
     <string name="checklist_sem_tarefas">Nenhuma tarefa cadastrada para este passeio.</string>
     <string name="checklist_sem_escala">Nenhuma escala para hoje.</string>
     <string name="checklist_todos_fechados">Os embarques de hoje já foram fechados pelo financeiro. O check list deles está concluído.</string>
-    <string name="aba_check_in_nav">Check-in</string>
+    <string name="aba_check_in_nav">Geocheck-in</string>
     <string name="aba_radar">Radar</string>
     <string name="aba_conta">Conta</string>
     <string name="aba_em_breve">Em breve</string>
@@ -200,6 +200,11 @@
     <string name="mapa_embarque_ligar">Ligar</string>
     <string name="mapa_embarque_whatsapp">WhatsApp</string>
     <string name="mapa_embarque_checkin_editar">Check-in / editar</string>
+    <string name="mapa_embarque_idioma">Idioma</string>
+    <string name="mapa_embarque_checkin_em">✓ Check-in em %1$s</string>
+    <string name="mapa_embarque_atraso_minuto">+1 minuto</string>
+    <string name="mapa_embarque_atraso_minutos">+%1$d minutos</string>
+    <string name="mapa_embarque_atraso_horas">+%1$dh %2$s</string>
     <string name="mapa_embarque_informacoes">INFORMAÇÕES</string>
     <string name="mapa_embarque_sem_info">Sem informações extras.</string>
 

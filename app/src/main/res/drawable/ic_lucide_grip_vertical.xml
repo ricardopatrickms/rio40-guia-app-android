@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucide icon (ISC) — mesmo path do lucide-react GripVertical do web -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path android:fillColor="#FF000000" android:pathData="M9,5m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+    <path android:fillColor="#FF000000" android:pathData="M9,12m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+    <path android:fillColor="#FF000000" android:pathData="M9,19m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+    <path android:fillColor="#FF000000" android:pathData="M15,5m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+    <path android:fillColor="#FF000000" android:pathData="M15,12m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+    <path android:fillColor="#FF000000" android:pathData="M15,19m-1,0a1,1 0,1 1,2,0a1,1 0,1 1,-2,0" />
+</vector>

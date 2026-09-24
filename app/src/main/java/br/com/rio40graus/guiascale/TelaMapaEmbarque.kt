@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,15 +27,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,12 +63,15 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
 import br.com.rio40graus.guiascale.rede.FormaPagamento
@@ -156,6 +156,10 @@ fun TelaMapaEmbarque(
     var excluirOcorrenciaId by remember { mutableStateOf<Int?>(null) }
     var erroOcorrencia by remember { mutableStateOf<String?>(null) }
     var editandoFornecedor by remember { mutableStateOf<FornecedorUi?>(null) }
+    // Só uma seção expansível aberta por vez (TOUR / FORNECEDORES / …).
+    var secaoAbertaId by remember(mapaSelecionadoId) {
+        mutableStateOf<String?>(SecaoMapaIds.TOUR)
+    }
     var nomeGuia by remember {
         mutableStateOf(Sessao.nomeExibicao ?: "")
     }
@@ -464,12 +468,21 @@ fun TelaMapaEmbarque(
 
                         SecaoExpansivel(
                             titulo = "${stringResource(R.string.mapa_embarque_tour)}: ${mapa.tour.orEmpty()}",
-                            abertaInicial = true,
+                            aberta = secaoAbertaId == SecaoMapaIds.TOUR,
+                            aoAlternar = {
+                                secaoAbertaId =
+                                    if (secaoAbertaId == SecaoMapaIds.TOUR) null else SecaoMapaIds.TOUR
+                            },
                         ) { SecaoTour(mapa) }
 
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_fornecedores),
-                            abertaInicial = false,
+                            aberta = secaoAbertaId == SecaoMapaIds.FORNECEDORES,
+                            aoAlternar = {
+                                secaoAbertaId =
+                                    if (secaoAbertaId == SecaoMapaIds.FORNECEDORES) null
+                                    else SecaoMapaIds.FORNECEDORES
+                            },
                         ) {
                             SecaoFornecedores(
                                 mapa = mapa,
@@ -479,7 +492,12 @@ fun TelaMapaEmbarque(
 
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_embarques),
-                            abertaInicial = false,
+                            aberta = secaoAbertaId == SecaoMapaIds.EMBARQUES,
+                            aoAlternar = {
+                                secaoAbertaId =
+                                    if (secaoAbertaId == SecaoMapaIds.EMBARQUES) null
+                                    else SecaoMapaIds.EMBARQUES
+                            },
                         ) {
                             if (mapa.reservas.isEmpty()) {
                                 Text(
@@ -493,6 +511,7 @@ fun TelaMapaEmbarque(
                                         key(reserva.id) {
                                             CartaoEmbarque(
                                                 reserva = reserva,
+                                                dataMapa = dataSelecionada,
                                                 bloqueado = mapa.bloqueado,
                                                 enviando = enviando == reserva.id,
                                                 aoEditar = { editando = mapa to reserva },
@@ -523,7 +542,12 @@ fun TelaMapaEmbarque(
 
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_ocorrencias),
-                            abertaInicial = false,
+                            aberta = secaoAbertaId == SecaoMapaIds.OCORRENCIAS,
+                            aoAlternar = {
+                                secaoAbertaId =
+                                    if (secaoAbertaId == SecaoMapaIds.OCORRENCIAS) null
+                                    else SecaoMapaIds.OCORRENCIAS
+                            },
                         ) {
                             SecaoOcorrencias(
                                 ocorrencias = ocorrencias,
@@ -582,7 +606,12 @@ fun TelaMapaEmbarque(
 
                         SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_informacoes),
-                            abertaInicial = false,
+                            aberta = secaoAbertaId == SecaoMapaIds.INFORMACOES,
+                            aoAlternar = {
+                                secaoAbertaId =
+                                    if (secaoAbertaId == SecaoMapaIds.INFORMACOES) null
+                                    else SecaoMapaIds.INFORMACOES
+                            },
                         ) {
                             // API ainda não envia info_importante (igual ao web).
                             Text(
@@ -1224,28 +1253,26 @@ private fun BlocoFornecedor(
         f.contato?.takeIf { it.isNotBlank() }?.let {
             LinhaCampo(stringResource(R.string.mapa_embarque_contato), it)
         }
-        if (f.motorista != null || f.telefone != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinhaCampo(
-                    stringResource(R.string.mapa_embarque_motorista_rotulo),
-                    f.motorista ?: "—",
-                )
-                LinhaCampo(
-                    stringResource(R.string.mapa_embarque_telefone_rotulo),
-                    f.telefone ?: "—",
-                )
-            }
+        if (f.motorista != null) {
+            LinhaCampo(
+                stringResource(R.string.mapa_embarque_motorista_rotulo),
+                f.motorista,
+            )
         }
-        if (f.carroModelo != null || f.capacidade != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinhaCampo(
-                    stringResource(R.string.mapa_embarque_carro_rotulo),
-                    f.carroModelo ?: "—",
-                )
-                if (f.capacidade != null) {
-                    LinhaCampo(stringResource(R.string.mapa_embarque_capacidade), f.capacidade)
-                }
-            }
+        if (f.telefone != null) {
+            LinhaCampo(
+                stringResource(R.string.mapa_embarque_telefone_rotulo),
+                f.telefone,
+            )
+        }
+        if (f.carroModelo != null) {
+            LinhaCampo(
+                stringResource(R.string.mapa_embarque_carro_rotulo),
+                f.carroModelo,
+            )
+        }
+        if (f.capacidade != null) {
+            LinhaCampo(stringResource(R.string.mapa_embarque_capacidade), f.capacidade)
         }
         f.placa?.takeIf { it.isNotBlank() }?.let {
             LinhaCampo(stringResource(R.string.mapa_embarque_placa), it)
@@ -1269,7 +1296,6 @@ private fun BlocoFornecedor(
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                textDecoration = if (f.acertoFornecedorId != null) TextDecoration.Underline else null,
             )
         }
         if (podeLancar) {
@@ -1288,7 +1314,6 @@ private fun BlocoFornecedor(
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
-                textDecoration = TextDecoration.Underline,
             )
         }
         f.observacao?.takeIf { it.isNotBlank() && it != f.atividade }?.let {
@@ -1336,6 +1361,7 @@ private data class OpcaoStatusEmbarque(
 @Composable
 private fun CartaoEmbarque(
     reserva: ReservaEmbarque,
+    dataMapa: String,
     bloqueado: Boolean,
     enviando: Boolean,
     aoEditar: () -> Unit,
@@ -1389,6 +1415,9 @@ private fun CartaoEmbarque(
     val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
         ?: reserva.endereco?.takeIf { it.isNotBlank() }
         ?: "—"
+    val enderecoExtra = reserva.endereco?.takeIf {
+        it.isNotBlank() && !reserva.embarque.isNullOrBlank() && it != reserva.embarque
+    }
     val hora = reserva.hora?.take(5) ?: "—"
     val opcoesStatus = listOf(
         OpcaoStatusEmbarque(STATUS_CHECK_IN, "Check-in", true, Color(0xFF16A34A)),
@@ -1405,21 +1434,29 @@ private fun CartaoEmbarque(
         )
     val statusNome = opcaoAtual.rotulo.uppercase(Locale.getDefault())
     val ehParcial = statusLocal == STATUS_PARCIAL
-    val qtd = if (ehParcial) {
-        listOf(
-            reserva.parcial?.adulto ?: 0,
-            reserva.parcial?.chd ?: 0,
-            reserva.parcial?.infantil ?: 0,
-        ).joinToString(" ")
-    } else {
-        listOf(reserva.adt, reserva.chd, reserva.inf).joinToString(" ")
-    }
+    val qtdAdt = if (ehParcial) reserva.parcial?.adulto ?: 0 else reserva.adt
+    val qtdChd = if (ehParcial) reserva.parcial?.chd ?: 0 else reserva.chd
+    val qtdInf = if (ehParcial) reserva.parcial?.infantil ?: 0 else reserva.inf
     val bandeira = bandeiraIdioma(reserva.idioma)
     val totalCobrar = reserva.a_receber + reserva.pagamentos.sumOf { it.taxa }
     val taxasCadastro = reserva.taxas
     val taxasNoSaldo = minOf(taxasCadastro, totalCobrar)
     val passeioNoSaldo = maxOf(0.0, totalCobrar - taxasNoSaldo)
     val mostrarBreakdown = taxasNoSaldo > 0.005
+
+    val resolvido = statusLocal == STATUS_CHECK_IN
+        || statusLocal == STATUS_NO_SHOW
+        || statusLocal == STATUS_PARCIAL
+    val referenciaAtraso = parseCheckedInAtMs(reserva.checked_in_at)
+    val atraso = if (resolvido && referenciaAtraso != null) {
+        calcularAtrasoEmbarque(dataMapa, reserva.hora, referenciaAtraso)
+    } else {
+        null
+    }
+    val checkInQuando = formatarCheckInEm(reserva.checked_in_at)
+    val temContato = !reserva.telefone.isNullOrBlank()
+        || !reserva.observacao.isNullOrBlank()
+        || statusLocal == STATUS_CHECK_IN
 
     fun gravarStatus(statusId: Int, motivo: Int? = null, parcial: Map<String, Int>? = null) {
         erroStatus = null
@@ -1461,153 +1498,277 @@ private fun CartaoEmbarque(
             .background(fundo)
             .border(1.dp, borda, RoundedCornerShape(8.dp)),
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 6.dp, top = 14.dp)
+                    .size(20.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { aberto = !aberto }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    Icons.Filled.Place,
+                    painter = painterResource(R.drawable.ic_lucide_map_pin),
                     contentDescription = null,
                     tint = Color(0xFFEF4444),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .size(20.dp),
                 )
+                // Nome quebra linha (break-words do web); horário fica fixo à direita.
                 Text(
                     hotel,
                     modifier = Modifier.weight(1f),
                     fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    statusNome,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(seloFundo)
-                        .border(1.dp, seloBorda, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    color = seloTexto,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
+                    softWrap = true,
+                    overflow = TextOverflow.Visible,
                 )
                 Text(
                     hora,
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelLarge,
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
+                    softWrap = false,
+                    maxLines = 1,
                 )
             }
+            enderecoExtra?.let { end ->
+                Text(
+                    end,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 28.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp,
+                    softWrap = true,
+                    overflow = TextOverflow.Visible,
+                )
+            }
+        }
 
-            FlowRow(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                statusNome,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(seloFundo)
+                    .border(1.dp, seloBorda, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                color = seloTexto,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            if (atraso != null && atraso.minutos > 0) {
+                val (atrasoFundo, atrasoTexto, atrasoBorda) = if (atraso.grave) {
+                    Triple(Color(0xFFFEE2E2), Color(0xFFB91C1C), Color(0xFFFCA5A5))
+                } else {
+                    Triple(Color(0xFFDBEAFE), Color(0xFF1E40AF), Color(0xFF93C5FD))
+                }
+                Text(
+                    atraso.rotulo,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(atrasoFundo)
+                        .border(1.dp, atrasoBorda, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = atrasoTexto,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        // Mesma grade do web: minmax(0,1.2fr) | minmax(0,1fr) | auto
+        // Fontes compactas (10/7/16sp) para caber como no web sem quebrar "IDIOMA".
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(bottom = if (temContato) 4.dp else 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CampoCaixaEmbarque(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .widthIn(min = 0.dp),
+                rotulo = "Apto",
+            ) {
+                Text(
+                    reserva.apto?.takeIf { it.isNotBlank() } ?: "—",
+                    modifier = Modifier.fillMaxWidth(),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            CampoCaixaEmbarque(
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(min = 0.dp),
+                rotulo = null,
+                paddingHorizontal = 6.dp,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+                ) {
+                    listOf(
+                        "ADT" to qtdAdt,
+                        "CHD" to qtdChd,
+                        "INF" to qtdInf,
+                    ).forEachIndexed { i, (rotulo, valor) ->
+                        if (i > 0) {
+                            Text(
+                                "·",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                lineHeight = 18.sp,
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                rotulo,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 7.sp,
+                                lineHeight = 8.sp,
+                                letterSpacing = 0.3.sp,
+                            )
+                            Text(
+                                "$valor",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                lineHeight = 18.sp,
+                            )
+                        }
+                    }
+                }
+            }
+            CampoCaixaEmbarque(
+                modifier = Modifier.widthIn(min = 52.dp),
+                rotulo = stringResource(R.string.mapa_embarque_idioma),
+                centralizado = true,
+                paddingHorizontal = 6.dp,
+            ) {
+                Text(
+                    if (bandeira.isNotEmpty()) bandeira else "—",
+                    fontSize = 18.sp,
+                    lineHeight = 20.sp,
+                )
+            }
+        }
+
+        if (temContato) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.mapa_embarque_apto),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        reserva.apto?.takeIf { it.isNotBlank() } ?: "—",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        textDecoration = TextDecoration.Underline,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.mapa_embarque_qtd),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        qtd,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        textDecoration = TextDecoration.Underline,
-                    )
-                }
-                if (bandeira.isNotEmpty()) {
-                    Text(bandeira, style = MaterialTheme.typography.titleMedium)
-                }
                 reserva.telefone?.takeIf { it.isNotBlank() }?.let { tel ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            tel,
-                            modifier = Modifier.clickable {
-                                linkWhatsapp(tel)?.let { uriHandler.openUri(it) }
-                            },
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                            textDecoration = TextDecoration.Underline,
-                        )
-                        Icon(
-                            Icons.Filled.Phone,
-                            contentDescription = stringResource(R.string.mapa_embarque_ligar),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable {
-                                    linkLigacao(tel)?.let { uri ->
-                                        runCatching {
-                                            contexto.startActivity(
-                                                Intent(Intent.ACTION_DIAL, Uri.parse(uri)),
-                                            )
-                                        }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_phone),
+                        contentDescription = stringResource(R.string.mapa_embarque_ligar),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            .clickable {
+                                linkLigacao(tel)?.let { uri ->
+                                    runCatching {
+                                        contexto.startActivity(
+                                            Intent(Intent.ACTION_DIAL, Uri.parse(uri)),
+                                        )
                                     }
-                                },
+                                }
+                            }
+                            .padding(6.dp),
+                    )
+                    Text(
+                        tel,
+                        modifier = Modifier.clickable {
+                            linkWhatsapp(tel)?.let { uriHandler.openUri(it) }
+                        },
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                if (!reserva.observacao.isNullOrBlank()) {
+                    Box {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_lucide_mail),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444)),
                         )
                     }
                 }
-                if (!reserva.observacao.isNullOrBlank()) {
-                    Icon(
-                        Icons.Filled.Email,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
                 if (statusLocal == STATUS_CHECK_IN) {
                     Icon(
-                        Icons.Filled.CheckCircle,
+                        painter = painterResource(R.drawable.ic_lucide_check_circle_2),
                         contentDescription = null,
                         tint = Color(0xFF16A34A),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
         }
 
         if (aberto) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(borda),
-            )
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                )
                 Row {
                     Text(
                         "ID ",
@@ -1702,6 +1863,16 @@ private fun CartaoEmbarque(
                     }
                 }
 
+                if (statusLocal == STATUS_CHECK_IN && checkInQuando != null) {
+                    Text(
+                        stringResource(R.string.mapa_embarque_checkin_em, checkInQuando),
+                        color = Color(0xFF16A34A),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+
                 erroStatus?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
@@ -1721,7 +1892,9 @@ private fun CartaoEmbarque(
                     aoEscolher = ::escolherStatus,
                 )
             }
+            }
         }
+    }
     }
 
     if (dialogoMotivo) {
@@ -1877,7 +2050,12 @@ private fun SeletorStatusEmbarque(
                     color = Color.White,
                 )
             } else {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White)
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_chevron_down),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
         DropdownMenu(expanded = menuAberto, onDismissRequest = { menuAberto = false }) {
@@ -1913,7 +2091,12 @@ private fun MenuSimplesEmbarque(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(rotulo, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_chevron_down),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
         DropdownMenu(expanded = menuAberto, onDismissRequest = { menuAberto = false }) {
             opcoes.forEach { (id, nome) ->
@@ -1978,13 +2161,21 @@ private fun linkLigacao(telefone: String): String? {
     return "tel:$prefixo$numero"
 }
 
+private object SecaoMapaIds {
+    const val TOUR = "tour"
+    const val FORNECEDORES = "fornecedores"
+    const val EMBARQUES = "embarques"
+    const val OCORRENCIAS = "ocorrencias"
+    const val INFORMACOES = "informacoes"
+}
+
 @Composable
 private fun SecaoExpansivel(
     titulo: String,
-    abertaInicial: Boolean,
+    aberta: Boolean,
+    aoAlternar: () -> Unit,
     conteudo: @Composable () -> Unit,
 ) {
-    var aberta by remember { mutableStateOf(abertaInicial) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1995,10 +2186,17 @@ private fun SecaoExpansivel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { aberta = !aberta }
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .clickable(onClick = aoAlternar)
+                .padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
             Text(
                 titulo,
                 modifier = Modifier.weight(1f),
@@ -2015,7 +2213,7 @@ private fun SecaoExpansivel(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Filled.KeyboardArrowDown,
+                    painter = painterResource(R.drawable.ic_lucide_chevron_down),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier
@@ -2031,7 +2229,7 @@ private fun SecaoExpansivel(
                     .height(1.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant),
             )
-            Box(Modifier.padding(12.dp)) { conteudo() }
+            Box(modifier = Modifier.padding(12.dp)) { conteudo() }
         }
     }
 }
@@ -2081,6 +2279,105 @@ private fun LinhaCyan(rotulo: String, valor: String, destaque: Boolean = false) 
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+@Composable
+private fun CampoCaixaEmbarque(
+    modifier: Modifier = Modifier,
+    rotulo: String?,
+    centralizado: Boolean = false,
+    paddingHorizontal: Dp = 8.dp,
+    conteudo: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .defaultMinSize(minHeight = 40.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, Color.Black.copy(alpha = 0.06f), RoundedCornerShape(6.dp))
+            .background(Color.Black.copy(alpha = 0.05f))
+            .padding(horizontal = paddingHorizontal, vertical = 4.dp),
+        horizontalAlignment = if (centralizado) Alignment.CenterHorizontally else Alignment.Start,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (rotulo != null) {
+            Text(
+                rotulo.uppercase(Locale.getDefault()),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                lineHeight = 11.sp,
+                letterSpacing = 0.4.sp,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+            )
+        }
+        conteudo()
+    }
+}
+
+/**
+ * Atraso = previsto × horário do check-in (igual ao `computeDelay` do web).
+ * Só aparece depois do check-in / parcial / no-show.
+ */
+private data class AtrasoEmbarque(val minutos: Int, val rotulo: String, val grave: Boolean)
+
+private fun parseCheckedInAtMs(raw: String?): Long? {
+    if (raw.isNullOrBlank()) return null
+    val limpo = raw.trim().replace(' ', 'T')
+    val formatos = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+    )
+    for (padrao in formatos) {
+        runCatching {
+            val sdf = SimpleDateFormat(padrao, Locale.US)
+            return sdf.parse(limpo)?.time
+        }
+    }
+    return null
+}
+
+private fun calcularAtrasoEmbarque(
+    dataIso: String?,
+    hora: String?,
+    referenciaMs: Long,
+): AtrasoEmbarque? {
+    if (dataIso.isNullOrBlank() || hora.isNullOrBlank()) return null
+    val partesHora = hora.take(5).split(":")
+    val h = partesHora.getOrNull(0)?.toIntOrNull() ?: return null
+    val m = partesHora.getOrNull(1)?.toIntOrNull() ?: return null
+    val partesData = dataIso.split("-")
+    val ano = partesData.getOrNull(0)?.toIntOrNull() ?: return null
+    val mes = partesData.getOrNull(1)?.toIntOrNull() ?: return null
+    val dia = partesData.getOrNull(2)?.toIntOrNull() ?: return null
+
+    val previsto = Calendar.getInstance().apply {
+        set(Calendar.YEAR, ano)
+        set(Calendar.MONTH, mes - 1)
+        set(Calendar.DAY_OF_MONTH, dia)
+        set(Calendar.HOUR_OF_DAY, h)
+        set(Calendar.MINUTE, m)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val minutos = Math.round((referenciaMs - previsto) / 60000.0).toInt()
+    if (minutos <= 0) return AtrasoEmbarque(minutos, "", false)
+
+    val rotulo = when {
+        minutos >= 60 -> "+%dh %02d".format(minutos / 60, minutos % 60)
+        minutos == 1 -> "+1 minuto"
+        else -> "+$minutos minutos"
+    }
+    return AtrasoEmbarque(minutos, rotulo, minutos >= 15)
+}
+
+private fun formatarCheckInEm(checkedInAt: String?): String? {
+    val ms = parseCheckedInAtMs(checkedInAt) ?: return null
+    return SimpleDateFormat("dd/MM HH:mm", Locale("pt", "BR")).format(Date(ms))
 }
 
 private fun dinheiro(valor: Double): String =

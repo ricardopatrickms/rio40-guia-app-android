@@ -96,6 +96,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.rio40graus.guiascale.dados.BancoLocal
@@ -1174,7 +1175,7 @@ private fun NavInferior(
                                     ).show()
                                 }
                             }
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
@@ -1191,6 +1192,9 @@ private fun NavInferior(
                             fontWeight = FontWeight.Medium,
                             color = cor,
                             maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Visible,
+                            fontSize = 9.sp,
                         )
                     }
                 }
