@@ -118,6 +118,7 @@ import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.PasseiosDoGuia
 import br.com.rio40graus.guiascale.rede.PedidoBloqueios
+import br.com.rio40graus.guiascale.rede.PedidoOrdemReservas
 import br.com.rio40graus.guiascale.rede.PedidoIdioma
 import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
@@ -128,6 +129,10 @@ import br.com.rio40graus.guiascale.rede.PedidoSolicitacoes
 import br.com.rio40graus.guiascale.rede.PedidoStatus
 import br.com.rio40graus.guiascale.rede.PedidoChecklistFeito
 import br.com.rio40graus.guiascale.rede.ProgressoDaLei
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.runtime.key
+import br.com.rio40graus.guiascale.rede.GuiaSelectItem
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
@@ -140,6 +145,7 @@ import br.com.rio40graus.guiascale.rede.nomeDoGuia
 import br.com.rio40graus.guiascale.rede.usuIdDoGuia
 import br.com.rio40graus.guiascale.ui.tema.CoresExtras
 import br.com.rio40graus.guiascale.ui.tema.FormaBotao
+import br.com.rio40graus.guiascale.ui.tema.FormaBotaoPequeno
 import br.com.rio40graus.guiascale.ui.tema.FormaCampo
 import br.com.rio40graus.guiascale.ui.tema.FormaCartao
 import br.com.rio40graus.guiascale.ui.tema.TemaGuiaScale
@@ -162,6 +168,9 @@ import kotlin.coroutines.resume
  * fontes e o mesmo desenho de tela de entrada. É o mesmo guia usando os dois
  * no mesmo dia, e a troca não deve parecer troca de sistema.
  */
+/** Aviso quando o admin ainda não escolheu um guia para inspecionar. */
+private const val AVISO_SELECIONE_GUIA = "Selecione um guia para inspecionar."
+
 class MainActivity : ComponentActivity() {
 
     /*
@@ -216,6 +225,7 @@ class MainActivity : ComponentActivity() {
                         aoEntrar = ::entrar,
                         aoSair = ::sair,
                         aoCarregarMapas = ::carregarMapas,
+                        aoOrdenarReservas = ::ordenarReservas,
                         aoCarregarTrajeto = ::carregarTrajeto,
                         aoCheckIn = ::checkIn,
                         aoCarregarMotivos = ::carregarMotivos,
@@ -258,11 +268,22 @@ class MainActivity : ComponentActivity() {
     private fun entrar(login: String, senha: String, aoTerminar: (String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                val resposta = Rede.api.login(PedidoLogin(login = login, senha = senha))
+                val resposta = Rede.api.acesso(PedidoLogin(login = login, senha = senha))
                 val token = resposta.access_token
 
                 if (token.isNullOrBlank()) {
                     aoTerminar(getString(R.string.erro_login))
+                } else if (resposta.tipo == "admin") {
+                    // Admin: token vale nas rotas escala/*; entra em modo leitura.
+                    Sessao.guardar(
+                        this@MainActivity,
+                        token,
+                        login,
+                        resposta.funcionario?.nome,
+                        null,
+                        tipo = "admin",
+                    )
+                    aoTerminar(null)
                 } else {
                     Sessao.guardar(
                         this@MainActivity,
@@ -270,6 +291,7 @@ class MainActivity : ComponentActivity() {
                         login,
                         nomeDoGuia(resposta.user, resposta.guia),
                         usuIdDoGuia(resposta.user, resposta.guia),
+                        tipo = "guia",
                     )
                     aoTerminar(null)
                 }
@@ -281,6 +303,8 @@ class MainActivity : ComponentActivity() {
 
     /** Preenche o nome do guia quando a sessão antiga só tinha o login/e-mail. */
     private fun atualizarPerfil() {
+        // Admin não tem guia/me (o token não vale nessa rota); nome já veio no login.
+        if (Sessao.ehAdmin) return
         lifecycleScope.launch {
             try {
                 val me = Rede.api.me()
@@ -296,6 +320,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun carregarNomeGuia(aoTerminar: (String?) -> Unit) {
+        // Admin: sem guia/me; usa o nome já guardado no login.
+        if (Sessao.ehAdmin) {
+            aoTerminar(Sessao.nomeExibicao)
+            return
+        }
         lifecycleScope.launch {
             try {
                 val me = Rede.api.me()
@@ -335,7 +364,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarMapas(data: String, aoTerminar: (List<MapaEmbarque>?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.mapaEmbarque(data).mapas, null)
+                val mapas = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.mapaEmbarqueAdmin(id, data).mapas
+                } else {
+                    Rede.api.mapaEmbarque(data).mapas
+                }
+                aoTerminar(mapas, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -345,6 +381,22 @@ class MainActivity : ComponentActivity() {
     /**
      * Trajeto já no servidor, um por mapa — cada embarque tem o seu rastro.
      */
+    /** Salva a nova ordem das reservas do mapa (arrastar-para-ordenar). */
+    private fun ordenarReservas(mapaId: Int, ids: List<Int>, aoTerminar: (String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.ordenarReservas(mapaId, PedidoOrdemReservas(ids))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun carregarTrajeto(
         data: String,
         mapaIds: List<Int>,
@@ -518,7 +570,9 @@ class MainActivity : ComponentActivity() {
     ) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.listarOcorrencias(mapaId).ocorrencias, null)
+                val itens = if (Sessao.ehAdmin) Rede.api.ocorrenciasAdmin(mapaId).ocorrencias
+                    else Rede.api.listarOcorrencias(mapaId).ocorrencias
+                aoTerminar(itens, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -587,6 +641,11 @@ class MainActivity : ComponentActivity() {
         mapaId: Int?,
         aoTerminar: (List<TarefaChecklist>?, String?) -> Unit,
     ) {
+        // Não há endpoint de check-list por guia para o admin; na inspeção, avisa.
+        if (Sessao.ehAdmin) {
+            aoTerminar(null, "Check list não disponível na inspeção do administrador.")
+            return
+        }
         lifecycleScope.launch {
             try {
                 aoTerminar(
@@ -626,7 +685,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarPainel(periodo: String, aoTerminar: (KpisDoPainel?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.painel(periodo), null)
+                val kpis = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.painelAdmin(id, periodo)
+                } else {
+                    Rede.api.painel(periodo)
+                }
+                aoTerminar(kpis, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -636,7 +702,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarPasseiosGuia(periodo: String, aoTerminar: (PasseiosDoGuia?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.passeiosGuia(periodo), null)
+                val passeios = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.passeiosGuiaAdmin(id, periodo)
+                } else {
+                    Rede.api.passeiosGuia(periodo)
+                }
+                aoTerminar(passeios, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -646,7 +719,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarAgenda(de: String, ate: String, aoTerminar: (AgendaDoGuia?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.agenda(de, ate), null)
+                val ag = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.agendaAdmin(id, de, ate)
+                } else {
+                    Rede.api.agenda(de, ate)
+                }
+                aoTerminar(ag, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -656,7 +736,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarFicha(aoTerminar: (FichaGuia?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.ficha(), null)
+                val f = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.fichaAdmin(id)
+                } else {
+                    Rede.api.ficha()
+                }
+                aoTerminar(f, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -664,6 +751,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun carregarLei(aoTerminar: (ProgressoDaLei?, String?) -> Unit) {
+        // Admin: o progresso da Lei é do guia; na inspeção usa o padrão (tudo fechado).
+        if (Sessao.ehAdmin) {
+            aoTerminar(ProgressoDaLei(), null)
+            return
+        }
         lifecycleScope.launch {
             try {
                 aoTerminar(Rede.api.leiProgresso(), null)
@@ -674,6 +766,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun salvarLei(dados: ProgressoDaLei, aoTerminar: (Boolean) -> Unit) {
+        // Admin não grava o progresso do guia.
+        if (Sessao.ehAdmin) {
+            aoTerminar(true)
+            return
+        }
         lifecycleScope.launch {
             try {
                 Rede.api.salvarLeiProgresso(dados)
@@ -687,7 +784,14 @@ class MainActivity : ComponentActivity() {
     private fun carregarBloqueios(from: String?, aoTerminar: (List<BloqueioGuia>?, String?) -> Unit) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.listarBloqueios(from).bloqueios, null)
+                val blo = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.bloqueiosAdmin(id, from).bloqueios
+                } else {
+                    Rede.api.listarBloqueios(from).bloqueios
+                }
+                aoTerminar(blo, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -752,7 +856,14 @@ class MainActivity : ComponentActivity() {
     ) {
         lifecycleScope.launch {
             try {
-                aoTerminar(Rede.api.listarSolicitacoes(from).solicitacoes, null)
+                val sols = if (Sessao.ehAdmin) {
+                    val id = Sessao.guiaInspecionadoId
+                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    Rede.api.solicitacoesAdmin(id, from).solicitacoes
+                } else {
+                    Rede.api.listarSolicitacoes(from).solicitacoes
+                }
+                aoTerminar(sols, null)
             } catch (erro: Exception) {
                 aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
             }
@@ -868,6 +979,7 @@ private fun Tela(
     aoEntrar: (String, String, (String?) -> Unit) -> Unit,
     aoSair: (() -> Unit) -> Unit,
     aoCarregarMapas: (String, (List<MapaEmbarque>?, String?) -> Unit) -> Unit,
+    aoOrdenarReservas: (Int, List<Int>, (String?) -> Unit) -> Unit,
     aoCarregarTrajeto: (String, List<Int>, (List<Pair<Double, Double>>?, String?) -> Unit) -> Unit,
     aoCheckIn: (Int, Int, Int, Int?, Map<String, Int>?, (String?) -> Unit) -> Unit,
     aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
@@ -998,6 +1110,10 @@ private fun Tela(
                 }
             }
 
+            val contexto = LocalContext.current
+            // Admin: qual guia está sendo inspecionado. Trocar recarrega as telas.
+            var guiaInspId by remember { mutableStateOf(Sessao.guiaInspecionadoId) }
+
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
                     // Todas as telas mostram a marca no header (Titan X Guide);
@@ -1006,7 +1122,26 @@ private fun Tela(
                     nomeGuia = nomeCabecalho,
                     aoPedirSaida = { confirmandoSaida = true },
                 )
+                if (Sessao.ehAdmin) {
+                    SeletorGuiaAdmin(
+                        aba = aba,
+                        guiaAtualId = guiaInspId,
+                        aoSelecionar = { g ->
+                            Sessao.guardarGuiaInspecionado(contexto, g.usu_id, g.nome)
+                            guiaInspId = g.usu_id
+                        },
+                    )
+                }
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    if (Sessao.ehAdmin && guiaInspId == null) {
+                        // Admin recém-entrou: aguarda a auto-seleção do primeiro guia,
+                        // sem mostrar mensagem de "selecione um guia".
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else key(guiaInspId) {
+                    // key(guiaInspId): ao trocar o guia inspecionado, as telas são
+                    // recriadas e recarregam os dados do guia novo.
                     when (aba) {
                         Aba.PAINEL -> TelaPainel(
                             aoCarregarPainel = aoCarregarPainel,
@@ -1027,6 +1162,7 @@ private fun Tela(
 
                         Aba.EMBARQUE -> TelaMapaEmbarque(
                             aoCarregar = aoCarregarMapas,
+                            aoOrdenarReservas = aoOrdenarReservas,
                             aoTrocarStatus = aoCheckIn,
                             aoCarregarMotivos = aoCarregarMotivos,
                             aoCarregarFormas = aoCarregarFormas,
@@ -1078,6 +1214,7 @@ private fun Tela(
                         Aba.RADAR -> TelaRadar()
 
                         else -> { /* abas desabilitadas / Conta no menu do avatar */ }
+                    }
                     }
                 }
 
@@ -1135,6 +1272,109 @@ private fun Tela(
  * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
  * Radar = tempo, vento/mar e trânsito, igual ao Radar do web.
  */
+/**
+ * Tarja de função do administrador — espelho do TarjaDeFuncao.tsx do web.
+ *
+ * Mostra "Função atual: Administrador" com um texto que muda por tela (o mapa é
+ * somente leitura etc.) e, ao lado, "Guia inspecionado:" com o seletor. A lista
+ * vem de guias/select-options; só entram guias com login (usu_id), que são os
+ * que têm painel/ficha/mapa para o admin abrir.
+ */
+@Composable
+private fun SeletorGuiaAdmin(
+    aba: Aba,
+    guiaAtualId: Int?,
+    aoSelecionar: (GuiaSelectItem) -> Unit,
+) {
+    var guias by remember { mutableStateOf<List<GuiaSelectItem>>(emptyList()) }
+    var menu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        runCatching { Rede.api.guiasSelect() }
+            .onSuccess { resp ->
+                val lista = resp.guias.filter { it.usu_id != null }
+                guias = lista
+                // Já entra com o primeiro guia selecionado, se nenhum foi escolhido —
+                // assim o admin cai direto no painel de alguém, sem tela vazia.
+                if (guiaAtualId == null) lista.firstOrNull()?.let { aoSelecionar(it) }
+            }
+    }
+
+    val atual = guias.firstOrNull { it.usu_id == guiaAtualId }
+
+    // Texto por tela, igual ao POR_ROTA/PADRAO do web.
+    val texto = when (aba) {
+        Aba.EMBARQUE -> "Você inspeciona o mapa de qualquer guia. Esta tela é somente leitura."
+        Aba.CHECK_LIST -> "O check list do dia é marcado pelo guia, no embarque."
+        else -> "Você visualiza o painel de qualquer guia e inspeciona os dados dele."
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Shield,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Função atual: Administrador",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Text(
+                texto,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Guia inspecionado:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = { menu = true },
+                        shape = FormaBotaoPequeno,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            atual?.nome ?: "Selecione um guia",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Icon(Icons.Filled.UnfoldMore, null, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        if (guias.isEmpty()) {
+                            DropdownMenuItem(text = { Text("Carregando…") }, onClick = {})
+                        }
+                        guias.forEach { g ->
+                            DropdownMenuItem(
+                                text = { Text(g.nome ?: "—") },
+                                onClick = { aoSelecionar(g); menu = false },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private enum class Aba(
     val rotulo: Int,
     val icone: ImageVector,

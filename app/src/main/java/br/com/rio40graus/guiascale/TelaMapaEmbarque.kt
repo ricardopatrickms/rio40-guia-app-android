@@ -1,5 +1,8 @@
 package br.com.rio40graus.guiascale
 
+import android.widget.Toast
+import sh.calvin.reorderable.ReorderableColumn
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -111,6 +114,7 @@ import kotlin.math.round
 @Composable
 fun TelaMapaEmbarque(
     aoCarregar: (data: String, aoTerminar: (List<MapaEmbarque>?, String?) -> Unit) -> Unit,
+    aoOrdenarReservas: (mapaId: Int, ids: List<Int>, aoTerminar: (String?) -> Unit) -> Unit = { _, _, _ -> },
     aoTrocarStatus: (
         reservaId: Int,
         mapaId: Int,
@@ -466,16 +470,23 @@ fun TelaMapaEmbarque(
                             )
                         }
 
-                        SecaoExpansivel(
+                        // Seções arrastáveis (ordem local, persistida) — igual ao web.
+                        val ctxSecoes = LocalContext.current
+                        var ordemSecoes by remember { mutableStateOf(carregarOrdemSecoes(ctxSecoes)) }
+
+                        val secaoDoMapa: @Composable (String, Modifier) -> Unit = { secaoId, handle ->
+                            when (secaoId) {
+                                SecaoMapaIds.TOUR -> SecaoExpansivel(
                             titulo = "${stringResource(R.string.mapa_embarque_tour)}: ${mapa.tour.orEmpty()}",
                             aberta = secaoAbertaId == SecaoMapaIds.TOUR,
                             aoAlternar = {
                                 secaoAbertaId =
                                     if (secaoAbertaId == SecaoMapaIds.TOUR) null else SecaoMapaIds.TOUR
                             },
+                            dragHandleModifier = handle,
                         ) { SecaoTour(mapa) }
 
-                        SecaoExpansivel(
+                                SecaoMapaIds.FORNECEDORES -> SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_fornecedores),
                             aberta = secaoAbertaId == SecaoMapaIds.FORNECEDORES,
                             aoAlternar = {
@@ -483,6 +494,7 @@ fun TelaMapaEmbarque(
                                     if (secaoAbertaId == SecaoMapaIds.FORNECEDORES) null
                                     else SecaoMapaIds.FORNECEDORES
                             },
+                            dragHandleModifier = handle,
                         ) {
                             SecaoFornecedores(
                                 mapa = mapa,
@@ -490,7 +502,7 @@ fun TelaMapaEmbarque(
                             )
                         }
 
-                        SecaoExpansivel(
+                                SecaoMapaIds.EMBARQUES -> SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_embarques),
                             aberta = secaoAbertaId == SecaoMapaIds.EMBARQUES,
                             aoAlternar = {
@@ -498,6 +510,7 @@ fun TelaMapaEmbarque(
                                     if (secaoAbertaId == SecaoMapaIds.EMBARQUES) null
                                     else SecaoMapaIds.EMBARQUES
                             },
+                            dragHandleModifier = handle,
                         ) {
                             if (mapa.reservas.isEmpty()) {
                                 Text(
@@ -506,41 +519,79 @@ fun TelaMapaEmbarque(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    mapa.reservas.sortedBy { it.hora ?: "" }.forEach { reserva ->
-                                        key(reserva.id) {
-                                            CartaoEmbarque(
-                                                reserva = reserva,
-                                                dataMapa = dataSelecionada,
-                                                bloqueado = mapa.bloqueado,
-                                                enviando = enviando == reserva.id,
-                                                aoEditar = { editando = mapa to reserva },
-                                                aoTrocarStatus = { statusId, motivoId, parcial, aoTerminar ->
-                                                    enviando = reserva.id
-                                                    aoTrocarStatus(
-                                                        reserva.id,
-                                                        mapa.id,
-                                                        statusId,
-                                                        motivoId,
-                                                        parcial,
-                                                    ) { falha ->
-                                                        enviando = null
-                                                        aoTerminar(falha)
-                                                        if (falha == null) {
-                                                            atualizarStatusLocal(reserva.id, statusId, parcial)
-                                                            recarregarSilencioso()
-                                                        }
+                                val ctx = LocalContext.current
+                                // Ordem do servidor (ordem_mapa_embarque); arrastável só
+                                // quando não está bloqueado nem em modo admin (leitura).
+                                val podeReordenar = !mapa.bloqueado && !Sessao.ehAdmin
+                                var ordenadas by remember(mapa.id, mapa.reservas) {
+                                    mutableStateOf(mapa.reservas)
+                                }
+
+                                // O card de cada reserva, reusado nos dois modos.
+                                val cartao: @Composable (ReservaEmbarque, Modifier) -> Unit =
+                                    { reserva, handle ->
+                                        CartaoEmbarque(
+                                            reserva = reserva,
+                                            dataMapa = dataSelecionada,
+                                            bloqueado = mapa.bloqueado,
+                                            enviando = enviando == reserva.id,
+                                            aoEditar = { editando = mapa to reserva },
+                                            aoTrocarStatus = { statusId, motivoId, parcial, aoTerminar ->
+                                                enviando = reserva.id
+                                                aoTrocarStatus(
+                                                    reserva.id,
+                                                    mapa.id,
+                                                    statusId,
+                                                    motivoId,
+                                                    parcial,
+                                                ) { falha ->
+                                                    enviando = null
+                                                    aoTerminar(falha)
+                                                    if (falha == null) {
+                                                        atualizarStatusLocal(reserva.id, statusId, parcial)
+                                                        recarregarSilencioso()
                                                     }
-                                                },
-                                                aoCarregarMotivos = aoCarregarMotivos,
-                                            )
+                                                }
+                                            },
+                                            aoCarregarMotivos = aoCarregarMotivos,
+                                            dragHandleModifier = handle,
+                                        )
+                                    }
+
+                                if (podeReordenar) {
+                                    ReorderableColumn(
+                                        list = ordenadas,
+                                        onSettle = { from, to ->
+                                            val nova = ordenadas.toMutableList()
+                                                .apply { add(to, removeAt(from)) }
+                                            ordenadas = nova
+                                            aoOrdenarReservas(mapa.id, nova.map { it.id }) { falha ->
+                                                if (falha != null) {
+                                                    ordenadas = mapa.reservas // reverte
+                                                    Toast.makeText(ctx, falha, Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    recarregarSilencioso()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) { _, reserva, _ ->
+                                        key(reserva.id) {
+                                            cartao(reserva, Modifier.draggableHandle())
+                                        }
+                                    }
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        ordenadas.forEach { reserva ->
+                                            key(reserva.id) { cartao(reserva, Modifier) }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        SecaoExpansivel(
+                                SecaoMapaIds.OCORRENCIAS -> SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_ocorrencias),
                             aberta = secaoAbertaId == SecaoMapaIds.OCORRENCIAS,
                             aoAlternar = {
@@ -548,6 +599,7 @@ fun TelaMapaEmbarque(
                                     if (secaoAbertaId == SecaoMapaIds.OCORRENCIAS) null
                                     else SecaoMapaIds.OCORRENCIAS
                             },
+                            dragHandleModifier = handle,
                         ) {
                             SecaoOcorrencias(
                                 ocorrencias = ocorrencias,
@@ -604,7 +656,7 @@ fun TelaMapaEmbarque(
                             )
                         }
 
-                        SecaoExpansivel(
+                                SecaoMapaIds.INFORMACOES -> SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_informacoes),
                             aberta = secaoAbertaId == SecaoMapaIds.INFORMACOES,
                             aoAlternar = {
@@ -612,6 +664,7 @@ fun TelaMapaEmbarque(
                                     if (secaoAbertaId == SecaoMapaIds.INFORMACOES) null
                                     else SecaoMapaIds.INFORMACOES
                             },
+                            dragHandleModifier = handle,
                         ) {
                             // API ainda não envia info_importante (igual ao web).
                             Text(
@@ -619,6 +672,21 @@ fun TelaMapaEmbarque(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                        }
+                            }
+                        }
+
+                        ReorderableColumn(
+                            list = ordemSecoes,
+                            onSettle = { from, to ->
+                                val nova = ordemSecoes.toMutableList().apply { add(to, removeAt(from)) }
+                                ordemSecoes = nova
+                                salvarOrdemSecoes(ctxSecoes, nova)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) { _, secaoId, _ ->
+                            key(secaoId) { secaoDoMapa(secaoId, Modifier.draggableHandle()) }
                         }
                     }
                 }
@@ -727,7 +795,8 @@ private fun SecaoOcorrencias(
     aoPedirExcluir: (Int) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (!bloqueado) {
+        // Admin é somente leitura: vê as ocorrências, mas não registra.
+        if (!bloqueado && !Sessao.ehAdmin) {
             OutlinedTextField(
                 value = relatoNovo,
                 onValueChange = aoMudarRelato,
@@ -774,7 +843,7 @@ private fun SecaoOcorrencias(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ocorrencias.forEach { o ->
                     val resolvida = o.status.equals("RESOLVIDA", ignoreCase = true)
-                    val podeEditar = !bloqueado && !resolvida &&
+                    val podeEditar = !bloqueado && !resolvida && !Sessao.ehAdmin &&
                         meuUsuId != null && o.usuario_id == meuUsuId
                     val editando = editandoId == o.id
 
@@ -1363,7 +1432,8 @@ private fun BlocoFornecedor(
     bloqueado: Boolean,
     aoInformarPagamento: () -> Unit,
 ) {
-    val podeLancar = f.acertoFornecedorId != null && f.permitePagamento && !bloqueado
+    // Admin é somente leitura: não lança pagamento a fornecedor.
+    val podeLancar = f.acertoFornecedorId != null && f.permitePagamento && !bloqueado && !Sessao.ehAdmin
     val pago = f.pagamentos.sumOf { it.valor }
     val total = f.total ?: 0.0
 
@@ -1502,6 +1572,7 @@ private fun CartaoEmbarque(
         aoTerminar: (String?) -> Unit,
     ) -> Unit,
     aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
+    dragHandleModifier: Modifier = Modifier,
 ) {
     var aberto by remember(reserva.id) { mutableStateOf(false) }
     var dialogoMotivo by remember { mutableStateOf(false) }
@@ -1638,7 +1709,8 @@ private fun CartaoEmbarque(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .padding(start = 6.dp, top = 14.dp)
-                    .size(20.dp),
+                    .size(20.dp)
+                    .then(dragHandleModifier),
             )
             Column(modifier = Modifier.weight(1f)) {
         Column(
@@ -1933,7 +2005,8 @@ private fun CartaoEmbarque(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
-                        .clickable(enabled = !bloqueado) { aoEditar() }
+                        // Admin é somente leitura: não abre o diálogo de check-in/edição.
+                        .clickable(enabled = !bloqueado && !Sessao.ehAdmin) { aoEditar() }
                         .padding(vertical = 2.dp),
                 ) {
                     Row {
@@ -2003,24 +2076,28 @@ private fun CartaoEmbarque(
                     )
                 }
 
-                erroStatus?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
+                // Admin é somente leitura: não altera o status (o status continua
+                // visível no selo acima). Só o guia muda no embarque.
+                if (!Sessao.ehAdmin) {
+                    erroStatus?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
 
-                Text(
-                    stringResource(R.string.mapa_embarque_alterar_status),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                SeletorStatusEmbarque(
-                    atual = opcaoAtual,
-                    opcoes = opcoesStatus.filter { it.permitido || it.id == statusLocal },
-                    bloqueado = bloqueado || enviando,
-                    carregando = enviando,
-                    aoEscolher = ::escolherStatus,
-                )
+                    Text(
+                        stringResource(R.string.mapa_embarque_alterar_status),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    SeletorStatusEmbarque(
+                        atual = opcaoAtual,
+                        opcoes = opcoesStatus.filter { it.permitido || it.id == statusLocal },
+                        bloqueado = bloqueado || enviando,
+                        carregando = enviando,
+                        aoEscolher = ::escolherStatus,
+                    )
+                }
             }
             }
         }
@@ -2299,11 +2376,40 @@ private object SecaoMapaIds {
     const val INFORMACOES = "informacoes"
 }
 
+// Ordem das seções do mapa (arrastar): preferência local, como o localStorage
+// do web. Sempre garante que todas as seções apareçam (novas entram no fim).
+private val ORDEM_SECOES_PADRAO = listOf(
+    SecaoMapaIds.TOUR,
+    SecaoMapaIds.FORNECEDORES,
+    SecaoMapaIds.EMBARQUES,
+    SecaoMapaIds.OCORRENCIAS,
+    SecaoMapaIds.INFORMACOES,
+)
+private const val PREFS_MAPA = "guiascale.mapa"
+private const val CHAVE_ORDEM_SECOES = "ordem_secoes_v1"
+
+private fun carregarOrdemSecoes(contexto: android.content.Context): List<String> {
+    val salvo = contexto.getSharedPreferences(PREFS_MAPA, android.content.Context.MODE_PRIVATE)
+        .getString(CHAVE_ORDEM_SECOES, null)
+        ?.split(",")
+        ?.filter { it in ORDEM_SECOES_PADRAO }
+        ?: emptyList()
+    return salvo + ORDEM_SECOES_PADRAO.filter { it !in salvo }
+}
+
+private fun salvarOrdemSecoes(contexto: android.content.Context, ordem: List<String>) {
+    contexto.getSharedPreferences(PREFS_MAPA, android.content.Context.MODE_PRIVATE)
+        .edit()
+        .putString(CHAVE_ORDEM_SECOES, ordem.joinToString(","))
+        .apply()
+}
+
 @Composable
 private fun SecaoExpansivel(
     titulo: String,
     aberta: Boolean,
     aoAlternar: () -> Unit,
+    dragHandleModifier: Modifier = Modifier,
     conteudo: @Composable () -> Unit,
 ) {
     Column(
@@ -2325,7 +2431,7 @@ private fun SecaoExpansivel(
                 painter = painterResource(R.drawable.ic_lucide_grip_vertical),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(20.dp).then(dragHandleModifier),
             )
             Text(
                 titulo,

@@ -505,7 +505,107 @@ interface ApiGuias {
      */
     @POST("guia/trafego/google")
     suspend fun trafegoGoogle(@Body corpo: PedidoTrafegoGoogle): RespostaTrafegoGoogle
+
+    // -------------------------------------------------------------- acesso único
+
+    /**
+     * Login ÚNICO (guia + admin). O servidor decide a tabela e devolve o tipo.
+     * Substitui o guia/login: com admin, o token vale nas rotas de inspeção.
+     */
+    @POST("app/acesso")
+    suspend fun acesso(@Body credenciais: PedidoLogin): RespostaAcesso
+
+    /** Salva a ordem das reservas do mapa (ordem_mapa_embarque). Igual ao web. */
+    @POST("guia/mapa/{mapaId}/ordem")
+    suspend fun ordenarReservas(
+        @Path("mapaId") mapaId: Int,
+        @Body corpo: PedidoOrdemReservas,
+    ): Response<Unit>
+
+    // --------------------------------------------------- inspeção admin (escala)
+    // Mesmos JSONs das rotas de guia; só muda o caminho e o usu_id do guia.
+
+    @GET("guias/select-options")
+    suspend fun guiasSelect(@Query("data") data: String? = null): RespostaGuiasSelect
+
+    @GET("escala/mapa-embarque")
+    suspend fun mapaEmbarqueAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("data") data: String? = null,
+    ): RespostaMapas
+
+    @GET("escala/painel")
+    suspend fun painelAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("periodo") periodo: String,
+    ): KpisDoPainel
+
+    @GET("escala/passeios-guia")
+    suspend fun passeiosGuiaAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("periodo") periodo: String,
+    ): PasseiosDoGuia
+
+    @GET("escala/agenda")
+    suspend fun agendaAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("de") de: String,
+        @Query("ate") ate: String,
+    ): AgendaDoGuia
+
+    @GET("escala/ficha")
+    suspend fun fichaAdmin(@Query("usu_id") usuId: Int): FichaGuia
+
+    @GET("escala/solicitacoes-trabalho")
+    suspend fun solicitacoesAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("from") from: String? = null,
+    ): RespostaSolicitacoes
+
+    @GET("disponibilidade")
+    suspend fun bloqueiosAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("from") from: String? = null,
+    ): RespostaBloqueios
+
+    @GET("escala/mapa/{mapaId}/ocorrencias")
+    suspend fun ocorrenciasAdmin(@Path("mapaId") mapaId: Int): RespostaOcorrencias
+
+    @POST("trafego/google")
+    suspend fun trafegoGoogleAdmin(@Body corpo: PedidoTrafegoGoogle): RespostaTrafegoGoogle
 }
+
+/** Resposta do login único: `tipo` diz se é guia ou admin. */
+data class RespostaAcesso(
+    val tipo: String? = null,
+    val access_token: String? = null,
+    val token_type: String? = null,
+    val expires_in: Int? = null,
+    val user: UsuarioLogin? = null,
+    val guia: GuiaPerfil? = null,
+    val is_admin: Boolean = false,
+    val funcionario: FuncionarioAdmin? = null,
+)
+
+data class FuncionarioAdmin(
+    val id: String? = null,
+    val nome: String? = null,
+    val cargo: String? = null,
+)
+
+data class RespostaGuiasSelect(
+    val guias: List<GuiaSelectItem> = emptyList(),
+)
+
+data class GuiaSelectItem(
+    val id: Int,
+    val nome: String? = null,
+    val usu_id: Int? = null,
+    val atende_no_dia: Boolean = true,
+    val solicitacao_trabalho: String? = null,
+)
+
+data class PedidoOrdemReservas(val reservas: List<Int>)
 
 data class PontoTrafego(val lat: Double, val lon: Double)
 

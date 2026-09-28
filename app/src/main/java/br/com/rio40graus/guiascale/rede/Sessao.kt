@@ -21,6 +21,9 @@ object Sessao {
     private const val CHAVE_LOGIN = "login"
     private const val CHAVE_NOME = "nome"
     private const val CHAVE_USU_ID = "usu_id"
+    private const val CHAVE_TIPO = "tipo"
+    private const val CHAVE_GUIA_INSP_ID = "guia_insp_id"
+    private const val CHAVE_GUIA_INSP_NOME = "guia_insp_nome"
 
     @Volatile
     var token: String? = null
@@ -40,6 +43,24 @@ object Sessao {
     var usuId: Int? = null
         private set
 
+    /** "guia" ou "admin" — quem entrou. O app decide o modo por isto. */
+    @Volatile
+    var tipo: String? = null
+        private set
+
+    /** true quando um administrador entrou (modo somente-leitura + inspeção). */
+    val ehAdmin: Boolean
+        get() = tipo == "admin"
+
+    /** Admin: o guia que está sendo inspecionado (usuarios.usu_id). */
+    @Volatile
+    var guiaInspecionadoId: Int? = null
+        private set
+
+    @Volatile
+    var guiaInspecionadoNome: String? = null
+        private set
+
     val autenticado: Boolean
         get() = !token.isNullOrBlank()
 
@@ -54,6 +75,9 @@ object Sessao {
         login = prefs.getString(CHAVE_LOGIN, null)
         nome = prefs.getString(CHAVE_NOME, null)
         usuId = prefs.getInt(CHAVE_USU_ID, 0).takeIf { it > 0 }
+        tipo = prefs.getString(CHAVE_TIPO, null)
+        guiaInspecionadoId = prefs.getInt(CHAVE_GUIA_INSP_ID, 0).takeIf { it > 0 }
+        guiaInspecionadoNome = prefs.getString(CHAVE_GUIA_INSP_NOME, null)
     }
 
     fun guardar(
@@ -62,15 +86,23 @@ object Sessao {
         login: String,
         nome: String? = null,
         usuId: Int? = null,
+        tipo: String = "guia",
     ) {
         this.token = token
         this.login = login
         this.nome = nome?.takeIf { it.isNotBlank() }
         this.usuId = usuId?.takeIf { it > 0 }
+        this.tipo = tipo
+        // Troca de sessão zera o guia inspecionado.
+        this.guiaInspecionadoId = null
+        this.guiaInspecionadoNome = null
 
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
             putString(CHAVE_TOKEN, token)
             putString(CHAVE_LOGIN, login)
+            putString(CHAVE_TIPO, tipo)
+            remove(CHAVE_GUIA_INSP_ID)
+            remove(CHAVE_GUIA_INSP_NOME)
             if (this@Sessao.nome != null) {
                 putString(CHAVE_NOME, this@Sessao.nome)
             } else {
@@ -80,6 +112,21 @@ object Sessao {
                 putInt(CHAVE_USU_ID, this@Sessao.usuId!!)
             } else {
                 remove(CHAVE_USU_ID)
+            }
+        }
+    }
+
+    /** Admin escolhe qual guia inspecionar. */
+    fun guardarGuiaInspecionado(contexto: Context, usuId: Int?, nome: String?) {
+        this.guiaInspecionadoId = usuId?.takeIf { it > 0 }
+        this.guiaInspecionadoNome = nome
+        contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
+            if (this@Sessao.guiaInspecionadoId != null) {
+                putInt(CHAVE_GUIA_INSP_ID, this@Sessao.guiaInspecionadoId!!)
+                putString(CHAVE_GUIA_INSP_NOME, nome)
+            } else {
+                remove(CHAVE_GUIA_INSP_ID)
+                remove(CHAVE_GUIA_INSP_NOME)
             }
         }
     }
@@ -104,6 +151,9 @@ object Sessao {
         login = null
         nome = null
         usuId = null
+        tipo = null
+        guiaInspecionadoId = null
+        guiaInspecionadoNome = null
 
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit { clear() }
     }

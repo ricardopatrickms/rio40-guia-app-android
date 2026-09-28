@@ -59,6 +59,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.rio40graus.guiascale.rede.FormaPagamento
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
+import br.com.rio40graus.guiascale.rede.Sessao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
@@ -721,7 +722,7 @@ private fun Cabecalho(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (ehHoje) Arrangement.SpaceBetween else Arrangement.End,
         ) {
-            if (ehHoje) {
+            if (ehHoje && !Sessao.ehAdmin) {
                 val fundoIniciar = if (embarqueAtivo) {
                     MaterialTheme.colorScheme.error
                 } else {
@@ -1003,7 +1004,8 @@ private fun BalaoDoPonto(
 
             // Igual ao web: o botão aparece sempre (mesmo após check-in) e abre
             // a modal de edição — não some quando o status já está resolvido.
-            if (!bloqueado) {
+            // Admin é somente leitura: vê o balão, mas não faz check-in.
+            if (!bloqueado && !Sessao.ehAdmin) {
                 Box(modifier = Modifier.padding(top = 6.dp)) {
                     BotaoPrincipal(
                         texto = stringResource(R.string.check_in_editar),
@@ -1169,7 +1171,7 @@ private fun LinhaDoPonto(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (!bloqueado) {
+            if (!bloqueado && !Sessao.ehAdmin) {
                 // Web: Button size="sm" h-7 text-[11px] variant="outline" — compacto.
                 Text(
                     text = stringResource(R.string.check_in_editar),

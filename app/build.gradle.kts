@@ -173,4 +173,7 @@ dependencies {
      */
     implementation("com.google.maps.android:maps-compose:6.4.1")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
+
+    // Arrastar para reordenar (seções e reservas do mapa), como o @dnd-kit do web.
+    implementation("sh.calvin.reorderable:reorderable:2.4.3")
 }

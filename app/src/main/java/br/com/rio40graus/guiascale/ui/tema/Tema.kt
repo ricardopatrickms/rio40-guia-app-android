@@ -1,7 +1,6 @@
 package br.com.rio40graus.guiascale.ui.tema
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -43,10 +42,14 @@ private val FormasGuiaScale = Shapes(
  * app com as cores do papel de parede do aparelho — foi o que deixou a tela
  * roxa e sem relação nenhuma com o azul da marca. Aqui a paleta é fixa, e é a
  * mesma que o guia vê no navegador.
+ *
+ * SEMPRE CLARO: o app não tem modo escuro. Mesmo com o celular no dark mode, a
+ * marca segue o padrão claro (igual ao app web). Por isso `escuro` é fixo em
+ * false — e o `values-night` foi removido, para o XML também não escurecer.
  */
 @Composable
 fun TemaGuiaScale(
-    escuro: Boolean = isSystemInDarkTheme(),
+    escuro: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val esquema = if (escuro) EsquemaEscuro else EsquemaClaro

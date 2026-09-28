@@ -338,12 +338,15 @@ fun TelaPainel(
             descricao = stringResource(R.string.painel_mapa_desc),
             onClick = aoAbrirEmbarque,
         )
-        CartaoAcaoSecundario(
-            iconeRes = R.drawable.ic_lucide_calendar_range,
-            titulo = stringResource(R.string.painel_disp_titulo),
-            descricao = stringResource(R.string.painel_disp_desc),
-            onClick = { bloqueioAberto = true },
-        )
+        // Admin é somente leitura: não cria bloqueio de disponibilidade.
+        if (!Sessao.ehAdmin) {
+            CartaoAcaoSecundario(
+                iconeRes = R.drawable.ic_lucide_calendar_range,
+                titulo = stringResource(R.string.painel_disp_titulo),
+                descricao = stringResource(R.string.painel_disp_desc),
+                onClick = { bloqueioAberto = true },
+            )
+        }
 
         if (bloqueiosProximos.isNotEmpty()) {
             Surface(
@@ -396,7 +399,7 @@ fun TelaPainel(
                                     )
                                 }
                             }
-                            TextButton(
+                            if (!Sessao.ehAdmin) TextButton(
                                 onClick = {
                                     removendoData = iso
                                     aoRemoverBloqueios(listOf(iso)) { falha ->
@@ -434,12 +437,15 @@ fun TelaPainel(
             }
         }
 
-        CartaoAcaoSecundario(
-            iconeRes = R.drawable.ic_lucide_briefcase,
-            titulo = stringResource(R.string.painel_solicitar_titulo),
-            descricao = stringResource(R.string.painel_solicitar_desc),
-            onClick = { solicitarAberto = true },
-        )
+        // Admin é somente leitura: não solicita trabalho no lugar do guia.
+        if (!Sessao.ehAdmin) {
+            CartaoAcaoSecundario(
+                iconeRes = R.drawable.ic_lucide_briefcase,
+                titulo = stringResource(R.string.painel_solicitar_titulo),
+                descricao = stringResource(R.string.painel_solicitar_desc),
+                onClick = { solicitarAberto = true },
+            )
+        }
 
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
