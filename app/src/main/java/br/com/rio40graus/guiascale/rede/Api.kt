@@ -498,7 +498,30 @@ interface ApiGuias {
 
     @POST("guia/solicitacoes-trabalho")
     suspend fun criarSolicitacoes(@Body corpo: PedidoSolicitacoes): RespostaSolicitacoes
+
+    /**
+     * Trânsito ao vivo pelo Google Routes — a chave fica no servidor, nunca no
+     * app. Mesmo endpoint que o Radar do web usa (guia/trafego/google).
+     */
+    @POST("guia/trafego/google")
+    suspend fun trafegoGoogle(@Body corpo: PedidoTrafegoGoogle): RespostaTrafegoGoogle
 }
+
+data class PontoTrafego(val lat: Double, val lon: Double)
+
+data class PedidoTrafegoGoogle(
+    val origin: PontoTrafego,
+    val destination: PontoTrafego,
+)
+
+data class RespostaTrafegoGoogle(
+    val durationMin: Double = 0.0,
+    val staticDurationMin: Double = 0.0,
+    val distanceKm: Double = 0.0,
+    val description: String? = null,
+    val tolls: Boolean = false,
+    val error: String? = null,
+)
 
 data class RespostaChecklist(
     val tarefas: List<TarefaChecklist> = emptyList(),

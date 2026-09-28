@@ -100,16 +100,29 @@ class RastreioService : LifecycleService() {
          * com o app fora da tela. Sem ele, o Android 14+ recusa o serviço; em
          * versões anteriores ele sobe, mas entrega coordenadas congeladas.
          */
-        ServiceCompat.startForeground(
-            this,
-            ID_NOTIFICACAO,
-            construirNotificacao(),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            } else {
-                0
-            },
-        )
+        try {
+            ServiceCompat.startForeground(
+                this,
+                ID_NOTIFICACAO,
+                construirNotificacao(),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                } else {
+                    0
+                },
+            )
+        } catch (erro: Exception) {
+            /*
+             * Android 14+ recusa o serviço em primeiro plano do tipo `location`
+             * quando a permissão ainda não foi concedida — e isso derrubava o
+             * app. Quem pede a permissão é a tela; aqui só encerramos em silêncio
+             * em vez de crashar. Normalmente nem chega neste ponto: a tela só
+             * liga o rastreio depois de a permissão existir (ver MainActivity).
+             */
+            EstadoRastreio.desligado(this)
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         /*
          * O mapa vem no Intent no "Iniciar embarque" e no primeiro check-in.

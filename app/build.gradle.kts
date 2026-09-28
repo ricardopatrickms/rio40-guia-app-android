@@ -28,18 +28,6 @@ android {
 
 
         /*
-         * O logo da agência não está na guias-api: quem guarda é o Supabase do
-         * app web, em `app_settings.logo_url`, e é de lá que o app web também
-         * lê. Para não haver dois logos diferentes, o Android lê da mesma
-         * fonte — ver rede/LogoDaAgencia.
-         *
-         * A chave abaixo é a `anon`, a mesma que vai no pacote JavaScript do
-         * app web e aparece no navegador de qualquer um. Ela não é segredo: o
-         * que protege a tabela é a RLS do Supabase, e a leitura de app_settings
-         * é pública de propósito, senão a tela de login não teria como mostrar
-         * o logo antes de alguém entrar.
-         */
-        /*
          * Chave do Google Maps para Android.
          *
          * Vai embutida no APK porque o SDK do Maps a lê do manifesto — não há
@@ -60,13 +48,6 @@ android {
         manifestPlaceholders["mapsApiKey"] =
             (project.findProperty("guiascale.mapsKey") as String?)
                 ?: "AIzaSyAJD4920A7GiI8GQIER0TgqQjWgDAgNN5g"
-
-        buildConfigField("String", "SUPABASE_URL", "\"https://gvauopyruthqebwaxrqy.supabase.co\"")
-        buildConfigField(
-            "String",
-            "SUPABASE_ANON_KEY",
-            "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2YXVvcHlydXRocWVid2F4cnF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMTg2NTEsImV4cCI6MjA5Mjg5NDY1MX0.M3WMaR763_Us0FIt7UstBiHTCmQLUac4qDGE3NlCZqk\"",
-        )
     }
 
     /*

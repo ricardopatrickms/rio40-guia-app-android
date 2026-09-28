@@ -554,8 +554,10 @@ fun TelaEmbarque(
                                         reserva = reserva,
                                         bloqueado = mapa.bloqueado,
                                         aoFechar = { selecionada = null },
+                                        // Mantém o mapa em tela cheia aberto: a modal de
+                                        // check-in é um Dialog e sobe por cima dele. Ao
+                                        // fechar a modal, o guia volta para o mapa, sem sair.
                                         aoEditar = {
-                                            mapaExpandido = false
                                             selecionada = null
                                             editando = mapa to reserva
                                         },

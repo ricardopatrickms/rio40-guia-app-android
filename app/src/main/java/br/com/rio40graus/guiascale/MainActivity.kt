@@ -103,6 +103,7 @@ import br.com.rio40graus.guiascale.dados.BancoLocal
 import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.rastreio.EstadoRastreio
 import br.com.rio40graus.guiascale.rastreio.RastreioService
+import br.com.rio40graus.guiascale.radar.TelaRadar
 import br.com.rio40graus.guiascale.rede.AgendaDoGuia
 import br.com.rio40graus.guiascale.rede.BloqueioGuia
 import br.com.rio40graus.guiascale.rede.DiasSemanaGuia
@@ -168,12 +169,26 @@ class MainActivity : ComponentActivity() {
      * Android recusa o pedido de "o tempo todo" se a permissão comum ainda não
      * foi concedida. Por isso são dois lançadores, um chamando o outro.
      */
+    // Um "iniciar embarque"/check-in pode estar esperando a resposta da
+    // permissão para só então subir o rastreio (senão o app cai no Android 14+).
+    private var aguardandoPermissaoParaRastrear = false
+    private var mapaPendenteRastreio: Int? = null
+
     private val pedirLocalizacao = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { concedidas ->
-        if (concedidas[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
-            pedirSegundoPlano()
+        val fine = concedidas[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarse = concedidas[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        // Só agora, com a permissão concedida, é seguro subir o serviço: o FGS
+        // do tipo `location` exige a permissão já dada no Android 14+.
+        if ((fine || coarse) && aguardandoPermissaoParaRastrear) {
+            RastreioService.iniciar(this, mapaPendenteRastreio)
         }
+        aguardandoPermissaoParaRastrear = false
+        mapaPendenteRastreio = null
+
+        if (fine) pedirSegundoPlano()
     }
 
     private val pedirEmSegundoPlano = registerForActivityResult(
@@ -231,7 +246,7 @@ class MainActivity : ComponentActivity() {
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
-                        aoLigar = { mapaId -> RastreioService.iniciar(this, mapaId) },
+                        aoLigar = { mapaId -> iniciarRastreio(mapaId) },
                         aoDesligar = { RastreioService.parar(this) },
                         aoAbrirBateria = ::abrirIsencaoDeBateria,
                     )
@@ -387,8 +402,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (statusId == STATUS_CHECK_IN && !EstadoRastreio.ativo(this@MainActivity)) {
-                    pedirPermissoes()
-                    RastreioService.iniciar(this@MainActivity, mapaId)
+                    iniciarRastreio(mapaId)
                 }
 
                 aoTerminar(null)
@@ -771,6 +785,24 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    /**
+     * Liga o rastreio com segurança.
+     *
+     * Se a permissão de localização já existe, sobe o serviço agora. Se não,
+     * pede a permissão e só sobe quando o guia conceder (ver pedirLocalizacao).
+     * Ligar o serviço ANTES da resposta derrubava o app no Android 14+, porque o
+     * serviço em primeiro plano do tipo `location` exige a permissão concedida.
+     */
+    private fun iniciarRastreio(mapaId: Int?) {
+        if (temPermissaoLocalizacao(this)) {
+            RastreioService.iniciar(this, mapaId)
+        } else {
+            aguardandoPermissaoParaRastrear = true
+            mapaPendenteRastreio = mapaId
+            pedirPermissoes()
+        }
+    }
+
     private fun pedirSegundoPlano() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         if (temPermissaoDeFundo(this)) return
@@ -800,6 +832,17 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Localização comum concedida (fina OU aproximada) — o mínimo do FGS. */
+        fun temPermissaoLocalizacao(contexto: Context): Boolean =
+            ContextCompat.checkSelfPermission(
+                contexto,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    contexto,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ) == PackageManager.PERMISSION_GRANTED
+
         fun temPermissaoDeFundo(contexto: Context): Boolean =
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 true
@@ -957,13 +1000,9 @@ private fun Tela(
 
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
-                    titulo = when (aba) {
-                        Aba.PAINEL -> stringResource(R.string.app_name)
-                        Aba.CHECK_LIST -> stringResource(R.string.checklist_titulo)
-                        Aba.EMBARQUE -> stringResource(R.string.app_name)
-                        Aba.CHECK_IN -> stringResource(R.string.app_name)
-                        else -> stringResource(R.string.app_name)
-                    },
+                    // Todas as telas mostram a marca no header (Titan X Guide);
+                    // o nome de cada aba já aparece no menu inferior.
+                    titulo = stringResource(R.string.app_name),
                     nomeGuia = nomeCabecalho,
                     aoPedirSaida = { confirmandoSaida = true },
                 )
@@ -1027,13 +1066,16 @@ private fun Tela(
                                     aoDesligar()
                                     rastreando = false
                                 } else {
-                                    aoPedirPermissoes()
+                                    // aoLigar já cuida da permissão: pede e só
+                                    // sobe o serviço quando ela for concedida.
                                     aoLigar(mapaId)
                                     rastreando = true
                                 }
                             },
                             aoCarregarTrajeto = aoCarregarTrajeto,
                         )
+
+                        Aba.RADAR -> TelaRadar()
 
                         else -> { /* abas desabilitadas / Conta no menu do avatar */ }
                     }
@@ -1091,7 +1133,7 @@ private fun Tela(
  * Conta fica no avatar do header (menu com Sair), não neste menu.
  *
  * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
- * Radar fica desabilitado por enquanto.
+ * Radar = tempo, vento/mar e trânsito, igual ao Radar do web.
  */
 private enum class Aba(
     val rotulo: Int,
@@ -1103,7 +1145,7 @@ private enum class Aba(
     EMBARQUE(R.string.aba_embarque, Icons.Filled.PersonPin, true),
     CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, true),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
-    RADAR(R.string.aba_radar, Icons.Filled.WbSunny, false),
+    RADAR(R.string.aba_radar, Icons.Filled.WbSunny, true),
     CONTA(R.string.aba_conta, Icons.Filled.Person, true, noMenuInferior = false),
 }
 
@@ -1336,10 +1378,10 @@ private fun iniciaisDoNome(nome: String?): String {
 /**
  * A marca: o logo do Titan X, embutido no app.
  *
- * Antes vinha do servidor (o logo da agência, `LogoDaAgencia`), mas a marca do
- * produto é fixa — o mesmo símbolo (a bússola/X) que aparece no ícone do app.
- * Ficar embutido também garante que a tela de entrada desenhe offline, sem
- * depender de rede.
+ * Antes vinha do servidor (o logo da agência, lido do Supabase do app web), mas
+ * a marca do produto é fixa — o mesmo símbolo (a bússola/X) que aparece no ícone
+ * do app. Ficar embutido também garante que a tela de entrada desenhe offline,
+ * sem depender de rede.
  *
  * O fundo branco e o `ContentScale.Fit` mantêm o `variant="mark"`: o logo tem
  * fundo transparente e o quadrado branco arredondado é o cartão da marca.

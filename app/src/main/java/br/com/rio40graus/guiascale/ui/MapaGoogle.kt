@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.OpenWith
@@ -290,7 +292,7 @@ fun MapaGoogle(
                 .align(Alignment.BottomEnd)
                 .zIndex(2f)
                 .then(if (expandido) Modifier.navigationBarsPadding() else Modifier)
-                .padding(end = 12.dp, bottom = if (expandido) 48.dp else 12.dp),
+                .padding(end = 12.dp, bottom = if (expandido) 96.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.End,
         ) {
@@ -339,39 +341,47 @@ fun MapaGoogle(
                 )
             }
 
-            when {
-                aoFecharExpandido != null -> {
-                    FloatingActionButton(
-                        onClick = aoFecharExpandido,
-                        modifier = Modifier.size(40.dp),
-                        shape = FloatingActionButtonDefaults.smallShape,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.embarque_fechar_mapa),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
+            // Fechar (X) sai daqui: em tela cheia ele vai para o topo à esquerda,
+            // onde fica óbvio e longe da barra de gestos. Ver abaixo.
+            if (aoExpandirMapa != null) {
+                FloatingActionButton(
+                    onClick = aoExpandirMapa,
+                    modifier = Modifier.size(40.dp),
+                    shape = FloatingActionButtonDefaults.smallShape,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.OpenWith,
+                        contentDescription = stringResource(R.string.embarque_expandir_mapa),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
-                aoExpandirMapa != null -> {
-                    FloatingActionButton(
-                        onClick = aoExpandirMapa,
-                        modifier = Modifier.size(40.dp),
-                        shape = FloatingActionButtonDefaults.smallShape,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.OpenWith,
-                            contentDescription = stringResource(R.string.embarque_expandir_mapa),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
+            }
+        }
+
+        // Mapa em tela cheia: botão X no canto superior esquerdo, abaixo da barra
+        // de status, bem visível — não escondido junto da lupa lá embaixo.
+        if (aoFecharExpandido != null) {
+            FloatingActionButton(
+                onClick = aoFecharExpandido,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .zIndex(2f)
+                    .statusBarsPadding()
+                    .padding(start = 12.dp, top = 12.dp)
+                    .size(40.dp),
+                shape = FloatingActionButtonDefaults.smallShape,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.embarque_fechar_mapa),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
