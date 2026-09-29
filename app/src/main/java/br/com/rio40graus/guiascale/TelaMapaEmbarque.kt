@@ -68,10 +68,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,7 +84,9 @@ import android.net.Uri
 import br.com.rio40graus.guiascale.rede.FormaPagamento
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
+import br.com.rio40graus.guiascale.rede.CategoriasPax
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
+import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.PagamentoFornecedor
@@ -138,6 +144,11 @@ fun TelaMapaEmbarque(
         itens: List<ItemPagamentoFornecedor>,
         aoTerminar: (String?) -> Unit,
     ) -> Unit,
+    aoSalvarQuantidadesFornecedor: (
+        acertoFornecedorId: Int,
+        quantidades: PedidoQuantidadesFornecedor,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit = {},
 ) {
     val hojeIso = remember { dataIsoMapaHoje() }
@@ -160,6 +171,7 @@ fun TelaMapaEmbarque(
     var excluirOcorrenciaId by remember { mutableStateOf<Int?>(null) }
     var erroOcorrencia by remember { mutableStateOf<String?>(null) }
     var editandoFornecedor by remember { mutableStateOf<FornecedorUi?>(null) }
+    var marcandoMeia by remember { mutableStateOf<FornecedorUi?>(null) }
     // Só uma seção expansível aberta por vez (TOUR / FORNECEDORES / …).
     var secaoAbertaId by remember(mapaSelecionadoId) {
         mutableStateOf<String?>(SecaoMapaIds.TOUR)
@@ -499,6 +511,7 @@ fun TelaMapaEmbarque(
                             SecaoFornecedores(
                                 mapa = mapa,
                                 aoInformarPagamento = { editandoFornecedor = it },
+                                aoMarcarMeia = { marcandoMeia = it },
                             )
                         }
 
@@ -768,6 +781,27 @@ fun TelaMapaEmbarque(
                     aoSalvarPagamentoFornecedor(acertoId, itens, aoTerminar)
                 },
                 aoFechar = { editandoFornecedor = null },
+                aoRecarregar = { recarregarSilencioso() },
+            )
+        }
+
+        marcandoMeia?.let { forn ->
+            val acertoId = forn.acertoFornecedorId ?: return@let
+            val reservado = forn.gerado ?: return@let
+            DialogMeiaFornecedor(
+                empresa = forn.empresa,
+                reservado = reservado,
+                atual = CategoriasPax(
+                    adt = forn.adt ?: 0,
+                    chd = forn.chd ?: 0,
+                    inf = forn.inf ?: 0,
+                    jovem = forn.jovem ?: 0,
+                    idoso = forn.idoso ?: 0,
+                ),
+                aoSalvar = { quantidades, aoTerminar ->
+                    aoSalvarQuantidadesFornecedor(acertoId, quantidades, aoTerminar)
+                },
+                aoFechar = { marcandoMeia = null },
                 aoRecarregar = { recarregarSilencioso() },
             )
         }
@@ -1300,6 +1334,7 @@ private fun SecaoTour(mapa: MapaEmbarque) {
 private fun SecaoFornecedores(
     mapa: MapaEmbarque,
     aoInformarPagamento: (FornecedorUi) -> Unit,
+    aoMarcarMeia: (FornecedorUi) -> Unit = {},
 ) {
     // Mesma montagem do web (`paraFornecedores`): transporte do mapa + demais.
     val fornecedoresUi = remember(mapa) { fornecedoresDoMapa(mapa) }
@@ -1317,6 +1352,7 @@ private fun SecaoFornecedores(
                     f = f,
                     bloqueado = mapa.bloqueado,
                     aoInformarPagamento = { aoInformarPagamento(f) },
+                    aoMarcarMeia = { aoMarcarMeia(f) },
                 )
             }
         }
@@ -1372,6 +1408,12 @@ private fun fornecedoresDoMapa(mapa: MapaEmbarque): List<FornecedorUi> {
             acertoFornecedorId = f.acerto_fornecedor_id,
             permitePagamento = f.permite_pagamento,
             pagamentos = f.pagamentos,
+            adt = f.adt,
+            chd = f.chd,
+            inf = f.inf,
+            jovem = f.jovem,
+            idoso = f.idoso,
+            gerado = f.gerado,
         )
     }
     if (!temTransporte) return demais
@@ -1424,6 +1466,14 @@ private data class FornecedorUi(
     val acertoFornecedorId: Int?,
     val permitePagamento: Boolean,
     val pagamentos: List<PagamentoFornecedor>,
+    // Breakdown por categoria e o "reservado (gerado)" — só na cobrança por
+    // pessoa. Nulo no transporte e nas despesas por serviço.
+    val adt: Int? = null,
+    val chd: Int? = null,
+    val inf: Int? = null,
+    val jovem: Int? = null,
+    val idoso: Int? = null,
+    val gerado: CategoriasPax? = null,
 )
 
 @Composable
@@ -1431,6 +1481,7 @@ private fun BlocoFornecedor(
     f: FornecedorUi,
     bloqueado: Boolean,
     aoInformarPagamento: () -> Unit,
+    aoMarcarMeia: () -> Unit = {},
 ) {
     // Admin é somente leitura: não lança pagamento a fornecedor.
     val podeLancar = f.acertoFornecedorId != null && f.permitePagamento && !bloqueado && !Sessao.ehAdmin
@@ -1476,6 +1527,14 @@ private fun BlocoFornecedor(
         }
         f.pax?.let {
             LinhaCampo(stringResource(R.string.mapa_embarque_qtd_pax), it.toString())
+        }
+        // Breakdown por categoria (só cobrança por pessoa). Clicável para marcar
+        // quem pagou meia (jovem/idoso), como no web.
+        if (f.gerado != null) {
+            val balde = f.gerado.adt + f.gerado.chd + f.gerado.inf + f.gerado.jovem + f.gerado.idoso
+            val podeEditarMeia = f.acertoFornecedorId != null && f.permitePagamento &&
+                !bloqueado && !Sessao.ehAdmin && balde > 0
+            LinhaBreakdownMeia(f = f, podeEditar = podeEditarMeia, aoClicar = aoMarcarMeia)
         }
         if (f.total != null) {
             Text(
@@ -1548,6 +1607,181 @@ private fun LinhaCampo(
             textDecoration = if (valorSublinhado) TextDecoration.Underline else null,
         )
     }
+}
+
+/**
+ * Linha ADT/CHD/INF (+ JOVEM/IDOSO) do fornecedor por pessoa.
+ *
+ * Espelha o web: JOVEM/IDOSO só aparecem quando têm valor ou quando dá para
+ * editar. Quando clicável, ganha um fundo de destaque e abre a marcação de meia.
+ */
+@Composable
+private fun LinhaBreakdownMeia(
+    f: FornecedorUi,
+    podeEditar: Boolean,
+    aoClicar: () -> Unit,
+) {
+    val mostraMeia = (f.jovem ?: 0) > 0 || (f.idoso ?: 0) > 0 || podeEditar
+    val texto = buildAnnotatedString {
+        fun par(rotulo: String, valor: Int, comEspaco: Boolean = true) {
+            if (comEspaco) append("  ")
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append("$rotulo: ") }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(valor.toString()) }
+        }
+        par("ADT", f.adt ?: 0, comEspaco = false)
+        par("CHD", f.chd ?: 0)
+        par("INF", f.inf ?: 0)
+        if (mostraMeia) {
+            par("JOVEM", f.jovem ?: 0)
+            par("IDOSO", f.idoso ?: 0)
+        }
+    }
+    val modificador = if (podeEditar) {
+        Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .clickable(onClick = aoClicar)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    } else {
+        Modifier
+    }
+    Text(
+        texto,
+        modifier = modificador,
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+}
+
+/**
+ * "Quem pagou meia" — mesma pegada do parcial: Categoria / Reservado / Meia.
+ *
+ * O guia distribui os pax reservados entre as categorias; a soma tem que ser
+ * igual ao reservado. Só as quantidades vão à API, que recalcula o valor.
+ */
+@Composable
+private fun DialogMeiaFornecedor(
+    empresa: String,
+    reservado: CategoriasPax,
+    atual: CategoriasPax,
+    aoSalvar: (PedidoQuantidadesFornecedor, (String?) -> Unit) -> Unit,
+    aoFechar: () -> Unit,
+    aoRecarregar: () -> Unit,
+) {
+    val balde = reservado.adt + reservado.chd + reservado.inf + reservado.jovem + reservado.idoso
+    // Abre com o que já foi definido; se ainda não há nada, parte do reservado.
+    val inicio = if (atual.adt + atual.chd + atual.inf + atual.jovem + atual.idoso > 0) atual else reservado
+    var adt by remember { mutableStateOf(inicio.adt.toString()) }
+    var chd by remember { mutableStateOf(inicio.chd.toString()) }
+    var inf by remember { mutableStateOf(inicio.inf.toString()) }
+    var jovem by remember { mutableStateOf(inicio.jovem.toString()) }
+    var idoso by remember { mutableStateOf(inicio.idoso.toString()) }
+    var salvando by remember { mutableStateOf(false) }
+    var erro by remember { mutableStateOf<String?>(null) }
+
+    fun n(v: String) = v.toIntOrNull() ?: 0
+    val soma = n(adt) + n(chd) + n(inf) + n(jovem) + n(idoso)
+    val invalido = soma != balde
+
+    AlertDialog(
+        onDismissRequest = { if (!salvando) aoFechar() },
+        title = { Text(stringResource(R.string.mapa_meia_titulo, empresa)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row {
+                    Text(
+                        stringResource(R.string.mapa_meia_categoria),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(R.string.mapa_meia_reservado),
+                        modifier = Modifier.padding(end = 8.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(R.string.mapa_meia_meia),
+                        modifier = Modifier.width(80.dp),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                listOf(
+                    Triple("ADT", reservado.adt, adt to { v: String -> adt = v }),
+                    Triple("CHD", reservado.chd, chd to { v: String -> chd = v }),
+                    Triple("INF", reservado.inf, inf to { v: String -> inf = v }),
+                    Triple("Jovem", reservado.jovem, jovem to { v: String -> jovem = v }),
+                    Triple("Idoso", reservado.idoso, idoso to { v: String -> idoso = v }),
+                ).forEach { (rotulo, res, campo) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(rotulo, modifier = Modifier.weight(1f))
+                        Text("$res", modifier = Modifier.padding(end = 8.dp))
+                        OutlinedTextField(
+                            value = campo.first,
+                            onValueChange = { campo.second(it.filter { c -> c.isDigit() }) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.width(80.dp),
+                        )
+                    }
+                }
+                if (invalido) {
+                    Text(
+                        if (soma < balde) {
+                            stringResource(R.string.mapa_meia_falta, balde, balde - soma)
+                        } else {
+                            stringResource(R.string.mapa_meia_excede, balde)
+                        },
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                erro?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !invalido && !salvando,
+                onClick = {
+                    salvando = true
+                    erro = null
+                    aoSalvar(
+                        PedidoQuantidadesFornecedor(
+                            adt = n(adt),
+                            chd = n(chd),
+                            inf = n(inf),
+                            jovem = n(jovem),
+                            idoso = n(idoso),
+                        ),
+                    ) { falha ->
+                        salvando = false
+                        if (falha == null) {
+                            aoFechar()
+                            aoRecarregar()
+                        } else {
+                            erro = falha
+                        }
+                    }
+                },
+            ) { Text(stringResource(R.string.mapa_pag_forn_salvar)) }
+        },
+        dismissButton = {
+            TextButton(onClick = aoFechar, enabled = !salvando) {
+                Text(stringResource(R.string.cancelar))
+            }
+        },
+    )
 }
 
 private data class OpcaoStatusEmbarque(

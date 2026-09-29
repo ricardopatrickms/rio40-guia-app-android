@@ -124,6 +124,7 @@ import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoPagamentosFornecedor
+import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.PedidoRemoverBloqueios
 import br.com.rio40graus.guiascale.rede.PedidoSolicitacoes
 import br.com.rio40graus.guiascale.rede.PedidoStatus
@@ -254,6 +255,7 @@ class MainActivity : ComponentActivity() {
                         aoCarregarSolicitacoes = ::carregarSolicitacoes,
                         aoCriarSolicitacoes = ::criarSolicitacoes,
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
+                        aoSalvarQuantidadesFornecedor = ::salvarQuantidadesFornecedor,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { mapaId -> iniciarRastreio(mapaId) },
@@ -533,6 +535,28 @@ class MainActivity : ComponentActivity() {
                 val resposta = Rede.api.salvarPagamentosFornecedor(
                     acertoFornecedorId,
                     PedidoPagamentosFornecedor(itens),
+                )
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarQuantidadesFornecedor(
+        acertoFornecedorId: Int,
+        quantidades: PedidoQuantidadesFornecedor,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarQuantidadesFornecedor(
+                    acertoFornecedorId,
+                    quantidades,
                 )
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
@@ -1008,6 +1032,7 @@ private fun Tela(
     aoCarregarSolicitacoes: (String?, (List<SolicitacaoTrabalho>?, String?) -> Unit) -> Unit,
     aoCriarSolicitacoes: (List<String>, String?, (String?) -> Unit) -> Unit,
     aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
+    aoSalvarQuantidadesFornecedor: (Int, PedidoQuantidadesFornecedor, (String?) -> Unit) -> Unit,
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: (mapaId: Int?) -> Unit,
@@ -1175,6 +1200,7 @@ private fun Tela(
                             aoEditarOcorrencia = aoEditarOcorrencia,
                             aoExcluirOcorrencia = aoExcluirOcorrencia,
                             aoSalvarPagamentoFornecedor = aoSalvarPagamentoFornecedor,
+                            aoSalvarQuantidadesFornecedor = aoSalvarQuantidadesFornecedor,
                             aoCarregarNomeGuia = aoCarregarNomeGuia,
                         )
 

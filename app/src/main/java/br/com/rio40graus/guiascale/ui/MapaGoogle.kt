@@ -146,8 +146,10 @@ fun MapaGoogle(
     LaunchedEffect(mapaPronto, cores) {
         if (!mapaPronto) return@LaunchedEffect
         iconesPorCor = cores.associateWith { cor ->
+            // Se o ícone desenhado falhar, cai no marcador padrão DA MESMA COR —
+            // não num azul fixo, senão o pino deixa de seguir a legenda.
             runCatching { iconeDoPino(contexto, cor) }.getOrElse {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                BitmapDescriptorFactory.defaultMarker(hueDoArgb(cor))
             }
         }
         iconeDoGuia = runCatching { iconeDoPontoDoGuia(contexto) }.getOrElse {
@@ -231,7 +233,7 @@ fun MapaGoogle(
             pinos.forEach { p ->
                 key(p.id) {
                     val icone = iconesPorCor[p.cor]
-                        ?: BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                        ?: BitmapDescriptorFactory.defaultMarker(hueDoArgb(p.cor))
                     Marker(
                         state = rememberMarkerState(
                             key = "pino-${p.id}",
@@ -443,6 +445,16 @@ private suspend fun obterPosicaoAgora(contexto: Context): Pair<Double, Double>? 
  * com o status, e o contorno e o miolo, que são sempre brancos. O tint do
  * Android pinta o desenho inteiro de uma cor só.
  */
+/**
+ * Matiz (0–360) de uma cor ARGB, para o marcador padrão do Google seguir a
+ * legenda quando o ícone desenhado não estiver disponível.
+ */
+private fun hueDoArgb(cor: Int): Float {
+    val hsv = FloatArray(3)
+    Color.colorToHSV(cor, hsv)
+    return hsv[0]
+}
+
 private fun iconeDoPino(contexto: Context, cor: Int): BitmapDescriptor {
     val d = contexto.resources.displayMetrics.density
     val largura = (26 * d).toInt().coerceAtLeast(1)

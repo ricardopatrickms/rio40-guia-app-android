@@ -169,7 +169,24 @@ data class FornecedorMapa(
     val descricao: String? = null,
     val valor: Double = 0.0,
     val pax: Int? = null,
+    // Breakdown por categoria (só na cobrança por pessoa; nulo por serviço).
+    val adt: Int? = null,
+    val chd: Int? = null,
+    val inf: Int? = null,
+    val jovem: Int? = null,
+    val idoso: Int? = null,
+    // Como o mapa foi gerado (base estável das reservas), para a modal de meia.
+    val gerado: CategoriasPax? = null,
     val pagamentos: List<PagamentoFornecedor> = emptyList(),
+)
+
+/** Quantidades por categoria — usado no "reservado (gerado)" da meia. */
+data class CategoriasPax(
+    val adt: Int = 0,
+    val chd: Int = 0,
+    val inf: Int = 0,
+    val jovem: Int = 0,
+    val idoso: Int = 0,
 )
 
 data class PagamentoFornecedor(
@@ -338,6 +355,15 @@ data class ItemPagamentoFornecedor(
     val id: Int? = null,
 )
 
+/** Meia: quantos pax pagaram em cada categoria (soma = reservado). */
+data class PedidoQuantidadesFornecedor(
+    val adt: Int,
+    val chd: Int,
+    val inf: Int,
+    val jovem: Int,
+    val idoso: Int,
+)
+
 data class CategoriaMotivo(val id: Int, val nome: String?)
 
 data class MotivoStatus(
@@ -424,6 +450,12 @@ interface ApiGuias {
     suspend fun salvarPagamentosFornecedor(
         @Path("acertoFornecedorId") acertoFornecedorId: Int,
         @Body corpo: PedidoPagamentosFornecedor,
+    ): Response<Unit>
+
+    @POST("guia/fornecedor/{acertoFornecedorId}/quantidades")
+    suspend fun salvarQuantidadesFornecedor(
+        @Path("acertoFornecedorId") acertoFornecedorId: Int,
+        @Body corpo: PedidoQuantidadesFornecedor,
     ): Response<Unit>
 
     @GET("guia/mapa/{mapaId}/ocorrencias")

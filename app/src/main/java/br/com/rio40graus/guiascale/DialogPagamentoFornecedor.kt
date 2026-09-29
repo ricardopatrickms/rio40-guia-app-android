@@ -40,6 +40,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -229,49 +231,71 @@ fun DialogPagamentoFornecedor(
                 }
 
                 if (entradas.isNotEmpty()) {
+                    // Verde do "pago certo" — o tertiaryContainer do tema saía
+                    // rosado, o oposto do sinal de OK.
+                    val verdeOk = Color(0xFF16A34A)
                     val corFundo = when {
                         excede -> MaterialTheme.colorScheme.errorContainer
                         falta > 0.005 -> MaterialTheme.colorScheme.primaryContainer
-                        else -> MaterialTheme.colorScheme.tertiaryContainer
+                        else -> verdeOk
                     }
                     val corTexto = when {
                         excede -> MaterialTheme.colorScheme.onErrorContainer
                         falta > 0.005 -> MaterialTheme.colorScheme.onPrimaryContainer
-                        else -> MaterialTheme.colorScheme.onTertiaryContainer
+                        else -> verdeOk
                     }
-                    Row(
+                    val pagoOk = !excede && falta <= 0.005
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .border(1.dp, corFundo, RoundedCornerShape(8.dp))
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        // Linha 1: Soma à esquerda; quando está OK, o "OK" fica
+                        // aqui mesmo, à direita no final.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.mapa_pag_forn_soma, dinheiroBr(soma)),
+                                modifier = Modifier.weight(1f),
+                                color = corTexto,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            if (pagoOk) {
+                                Text(
+                                    stringResource(R.string.mapa_pag_forn_ok),
+                                    color = corTexto,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                        // Total numa linha abaixo da soma.
                         Text(
-                            stringResource(
-                                R.string.mapa_pag_forn_soma,
-                                dinheiroBr(soma),
-                                dinheiroBr(total),
-                            ),
+                            stringResource(R.string.mapa_pag_forn_total_linha, dinheiroBr(total)),
                             color = corTexto,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Text(
-                            when {
-                                excede -> stringResource(
+                        // Falta/Excede numa linha abaixo, à direita.
+                        if (!pagoOk) {
+                            Text(
+                                if (excede) stringResource(
                                     R.string.mapa_pag_forn_excede,
                                     dinheiroBr(kotlin.math.abs(falta)),
-                                )
-                                falta > 0.005 -> stringResource(
+                                ) else stringResource(
                                     R.string.mapa_pag_forn_falta,
                                     dinheiroBr(falta),
-                                )
-                                else -> stringResource(R.string.mapa_pag_forn_ok)
-                            },
-                            color = corTexto,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                color = corTexto,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.End,
+                            )
+                        }
                     }
                 }
 
