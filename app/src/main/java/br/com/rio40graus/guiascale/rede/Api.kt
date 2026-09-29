@@ -776,6 +776,8 @@ data class BloqueioGuia(
     val status: String? = null,
     val reason: String? = null,
     val source: String? = null,
+    val situacao: String? = null,
+    val motivo_decisao: String? = null,
 )
 
 data class PedidoBloqueios(

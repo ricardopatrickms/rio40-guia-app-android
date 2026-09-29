@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -370,7 +371,9 @@ fun TelaPainel(
                             fmtApi.parse(iso)?.let { fmtExibir.format(it) }
                         }.getOrNull() ?: iso
                         // Igual ao web: `rounded-md border` sobre fundo branco do card.
-                        Row(
+                        val pendente = b.situacao.equals("pendente", ignoreCase = true)
+                        val recusada = b.situacao.equals("recusada", ignoreCase = true)
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
@@ -380,26 +383,39 @@ fun TelaPainel(
                                 )
                                 .background(Color.White, RoundedCornerShape(8.dp))
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = dataExibir,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                if (!b.reason.isNullOrBlank()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = b.reason!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                        text = dataExibir,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
                                     )
+                                    if (!b.reason.isNullOrBlank()) {
+                                        Text(
+                                            text = b.reason!!,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                 }
+                                BadgeSituacao(b.situacao)
                             }
-                            if (!Sessao.ehAdmin) TextButton(
+                            if (recusada && !b.motivo_decisao.isNullOrBlank()) {
+                                Text(
+                                    text = b.motivo_decisao!!,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                            if (pendente && !Sessao.ehAdmin) TextButton(
                                 onClick = {
                                     removendoData = iso
                                     aoRemoverBloqueios(listOf(iso)) { falha ->
@@ -417,17 +433,18 @@ fun TelaPainel(
                                     }
                                 },
                                 enabled = removendoData == null,
+                                contentPadding = PaddingValues(0.dp),
                             ) {
                                 if (removendoData == iso) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
                                         strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = MaterialTheme.colorScheme.error,
                                     )
                                 } else {
                                     Text(
                                         text = stringResource(R.string.bloqueios_remover),
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = MaterialTheme.colorScheme.error,
                                     )
                                 }
                             }
@@ -2089,4 +2106,44 @@ private fun idadeDe(iso: String?): Int? {
     }
     if (hoje.before(anivEsteAno)) idade--
     return idade
+}
+
+@Composable
+private fun BadgeSituacao(situacao: String?) {
+    val s = (situacao ?: "").uppercase(Locale.US)
+    val fundo: Color
+    val texto: Color
+    val rotulo: String
+    when (s) {
+        "APROVADA" -> {
+            fundo = Color(0xFF22A050)
+            texto = Color.White
+            rotulo = "Aprovada"
+        }
+        "RECUSADA" -> {
+            fundo = Color(0xFFDF2020)
+            texto = Color.White
+            rotulo = "Recusada"
+        }
+        "PENDENTE" -> {
+            fundo = Color(0xFF7C3AED)
+            texto = Color.White
+            rotulo = "Aguardando"
+        }
+        else -> {
+            fundo = Color(0xFFEFEFEB)
+            texto = Color(0xFF506261)
+            rotulo = if (s.isEmpty()) "—" else s.lowercase(Locale("pt", "BR"))
+                .replaceFirstChar { it.titlecase(Locale("pt", "BR")) }
+        }
+    }
+    Surface(shape = RoundedCornerShape(999.dp), color = fundo) {
+        Text(
+            text = rotulo,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = texto,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
