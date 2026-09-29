@@ -334,6 +334,18 @@ data class PedidoStatus(
     val idoso: Int? = null,
 )
 
+/**
+ * Nova quantidade RESERVADA por categoria — só para aumentar.
+ * Redução continua pelo status PARCIAL (PedidoStatus).
+ */
+data class PedidoQuantidadeReserva(
+    val adulto: Int,
+    val chd: Int,
+    val infantil: Int,
+    val jovem: Int,
+    val idoso: Int,
+)
+
 data class PedidoIdioma(val idioma_id: Int)
 
 data class PedidoPagamentos(val pagamentos: List<ItemPagamento>)
@@ -432,6 +444,12 @@ interface ApiGuias {
     suspend fun trocarStatus(
         @Path("reservaId") reservaId: Int,
         @Body corpo: PedidoStatus,
+    ): Response<Unit>
+
+    @POST("guia/reserva/{reservaId}/quantidades")
+    suspend fun salvarQuantidadeReserva(
+        @Path("reservaId") reservaId: Int,
+        @Body corpo: PedidoQuantidadeReserva,
     ): Response<Unit>
 
     @POST("guia/reserva/{reservaId}/pagamentos")

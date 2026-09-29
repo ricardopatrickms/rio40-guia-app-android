@@ -124,6 +124,7 @@ import br.com.rio40graus.guiascale.rede.PedidoLogin
 import br.com.rio40graus.guiascale.rede.PedidoOcorrencia
 import br.com.rio40graus.guiascale.rede.PedidoPagamentos
 import br.com.rio40graus.guiascale.rede.PedidoPagamentosFornecedor
+import br.com.rio40graus.guiascale.rede.PedidoQuantidadeReserva
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.PedidoRemoverBloqueios
 import br.com.rio40graus.guiascale.rede.PedidoSolicitacoes
@@ -256,6 +257,7 @@ class MainActivity : ComponentActivity() {
                         aoCriarSolicitacoes = ::criarSolicitacoes,
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
                         aoSalvarQuantidadesFornecedor = ::salvarQuantidadesFornecedor,
+                        aoSalvarQuantidadeReserva = ::salvarQuantidadeReserva,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { mapaId -> iniciarRastreio(mapaId) },
@@ -514,6 +516,25 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val resposta = Rede.api.salvarPagamentos(reservaId, PedidoPagamentos(itens))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarQuantidadeReserva(
+        reservaId: Int,
+        quantidades: PedidoQuantidadeReserva,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarQuantidadeReserva(reservaId, quantidades)
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
                 } else {
@@ -1033,6 +1054,7 @@ private fun Tela(
     aoCriarSolicitacoes: (List<String>, String?, (String?) -> Unit) -> Unit,
     aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
     aoSalvarQuantidadesFornecedor: (Int, PedidoQuantidadesFornecedor, (String?) -> Unit) -> Unit,
+    aoSalvarQuantidadeReserva: (Int, PedidoQuantidadeReserva, (String?) -> Unit) -> Unit,
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: (mapaId: Int?) -> Unit,
@@ -1201,6 +1223,7 @@ private fun Tela(
                             aoExcluirOcorrencia = aoExcluirOcorrencia,
                             aoSalvarPagamentoFornecedor = aoSalvarPagamentoFornecedor,
                             aoSalvarQuantidadesFornecedor = aoSalvarQuantidadesFornecedor,
+                            aoSalvarQuantidadeReserva = aoSalvarQuantidadeReserva,
                             aoCarregarNomeGuia = aoCarregarNomeGuia,
                         )
 

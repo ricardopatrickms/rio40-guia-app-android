@@ -86,6 +86,7 @@ import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.CategoriasPax
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
+import br.com.rio40graus.guiascale.rede.PedidoQuantidadeReserva
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
@@ -147,6 +148,11 @@ fun TelaMapaEmbarque(
     aoSalvarQuantidadesFornecedor: (
         acertoFornecedorId: Int,
         quantidades: PedidoQuantidadesFornecedor,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
+    aoSalvarQuantidadeReserva: (
+        reservaId: Int,
+        quantidades: PedidoQuantidadeReserva,
         aoTerminar: (String?) -> Unit,
     ) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit = {},
@@ -539,6 +545,12 @@ fun TelaMapaEmbarque(
                                 var ordenadas by remember(mapa.id, mapa.reservas) {
                                     mutableStateOf(mapa.reservas)
                                 }
+                                val capacidadeVeiculo = mapa.veiculo?.capacidade?.takeIf { it > 0 }
+                                // Infantil não ocupa lugar no transporte — mesma conta da SecaoTour.
+                                val lugaresOcupados = remember(mapa.reservas) {
+                                    val presentes = acumularPax(mapa.reservas.map { paxPresentesCategorias(it) })
+                                    presentes.total - presentes.inf
+                                }
 
                                 // O card de cada reserva, reusado nos dois modos.
                                 val cartao: @Composable (ReservaEmbarque, Modifier) -> Unit =
@@ -567,6 +579,16 @@ fun TelaMapaEmbarque(
                                                 }
                                             },
                                             aoCarregarMotivos = aoCarregarMotivos,
+                                            capacidadeVeiculo = capacidadeVeiculo,
+                                            lugaresOcupados = lugaresOcupados,
+                                            aoSalvarQuantidade = { quantidades, aoTerminar ->
+                                                enviando = reserva.id
+                                                aoSalvarQuantidadeReserva(reserva.id, quantidades) { falha ->
+                                                    enviando = null
+                                                    aoTerminar(falha)
+                                                    if (falha == null) recarregarSilencioso()
+                                                }
+                                            },
                                             dragHandleModifier = handle,
                                         )
                                     }
@@ -1044,8 +1066,10 @@ private data class PaxPorCategoria(
 private fun paxReservadosDaReserva(r: ReservaEmbarque): PaxPorCategoria =
     PaxPorCategoria(r.adt, r.chd, r.inf, r.jovem, r.idoso)
 
-private fun paxPresentesCategorias(r: ReservaEmbarque): PaxPorCategoria {
-    val statusId = r.status?.id
+private fun paxPresentesCategorias(
+    r: ReservaEmbarque,
+    statusId: Int? = r.status?.id,
+): PaxPorCategoria {
     if (statusId == STATUS_NO_SHOW) return PaxPorCategoria()
     val total = paxReservadosDaReserva(r)
     if (statusId != STATUS_PARCIAL) return total
@@ -1806,11 +1830,25 @@ private fun CartaoEmbarque(
         aoTerminar: (String?) -> Unit,
     ) -> Unit,
     aoCarregarMotivos: ((RespostaMotivos?, String?) -> Unit) -> Unit,
+    /** Capacidade de assentos do veículo; null = sem cadastro. */
+    capacidadeVeiculo: Int? = null,
+    /** Assentos já ocupados no mapa (INF não entra). */
+    lugaresOcupados: Int = 0,
+    aoSalvarQuantidade: (PedidoQuantidadeReserva, (String?) -> Unit) -> Unit = { _, t -> t(null) },
     dragHandleModifier: Modifier = Modifier,
 ) {
     var aberto by remember(reserva.id) { mutableStateOf(false) }
     var dialogoMotivo by remember { mutableStateOf(false) }
     var dialogoParcial by remember { mutableStateOf(false) }
+    // Modal do QTD: quantos EMBARCAM por categoria (mesma cara do PARCIAL).
+    // Menor que o reservado → PARCIAL. Maior → aumenta a reserva (com vaga).
+    var dialogoQtd by remember { mutableStateOf(false) }
+    var embarcouAdt by remember { mutableStateOf("0") }
+    var embarcouChd by remember { mutableStateOf("0") }
+    var embarcouInf by remember { mutableStateOf("0") }
+    // Assentos (sem INF) que já contavam ao abrir o modal: o delta de vagas é
+    // só o que o guia aumentou em relação a isto, não o total digitado.
+    var assentosBaseAoAbrir by remember { mutableStateOf(0) }
     var motivos by remember { mutableStateOf<RespostaMotivos?>(null) }
     var carregandoMotivos by remember { mutableStateOf(false) }
     var categoriaId by remember { mutableStateOf<Int?>(null) }
@@ -1869,9 +1907,12 @@ private fun CartaoEmbarque(
         )
     val statusNome = opcaoAtual.rotulo.uppercase(Locale.getDefault())
     val ehParcial = statusLocal == STATUS_PARCIAL
-    val qtdAdt = if (ehParcial) reserva.parcial?.adulto ?: 0 else reserva.adt
-    val qtdChd = if (ehParcial) reserva.parcial?.chd ?: 0 else reserva.chd
-    val qtdInf = if (ehParcial) reserva.parcial?.infantil ?: 0 else reserva.inf
+    // Em PARCIAL o QTD mostra quem EMBARCOU (o número que o guia confere no
+    // ônibus), igual ao web; quem não embarcou fica no modal do PARCIAL.
+    val embarcados = paxPresentesCategorias(reserva, statusLocal)
+    val qtdAdt = if (ehParcial) embarcados.adt else reserva.adt
+    val qtdChd = if (ehParcial) embarcados.chd else reserva.chd
+    val qtdInf = if (ehParcial) embarcados.inf else reserva.inf
     val bandeira = bandeiraIdioma(reserva.idioma)
     val totalCobrar = reserva.a_receber + reserva.pagamentos.sumOf { it.taxa }
     val taxasCadastro = reserva.taxas
@@ -1900,9 +1941,92 @@ private fun CartaoEmbarque(
                 statusLocal = statusId
                 dialogoMotivo = false
                 dialogoParcial = false
+                dialogoQtd = false
             } else {
                 erroStatus = falha
             }
+        }
+    }
+
+    val podeEditarQtd = !bloqueado && !enviando && !Sessao.ehAdmin
+    val nEmbarcou = { valor: String -> maxOf(0, valor.toIntOrNull() ?: 0) }
+    val lugaresNovos = nEmbarcou(embarcouAdt) + nEmbarcou(embarcouChd) +
+        // Jovem/idoso não são editáveis aqui — mantém o que já contava na base.
+        embarcados.jovem + embarcados.idoso
+    val lugaresAMais = maxOf(0, lugaresNovos - assentosBaseAoAbrir)
+    val ocupacaoPrevista = lugaresOcupados - assentosBaseAoAbrir + lugaresNovos
+    val qtdExcedeVeiculo = capacidadeVeiculo != null &&
+        lugaresAMais > 0 &&
+        ocupacaoPrevista > capacidadeVeiculo
+
+    fun abrirQuantidade() {
+        if (!podeEditarQtd) return
+        assentosBaseAoAbrir = embarcados.adt + embarcados.chd + embarcados.jovem + embarcados.idoso
+        embarcouAdt = embarcados.adt.toString()
+        embarcouChd = embarcados.chd.toString()
+        embarcouInf = embarcados.inf.toString()
+        erroStatus = null
+        dialogoQtd = true
+    }
+
+    /*
+     * Maior que o reservado → aumenta a reserva (API de quantidades).
+     * Menor que o reservado → PARCIAL com quem não embarcou (API de status).
+     */
+    fun salvarQuantidade() {
+        if (qtdExcedeVeiculo || enviando) return
+        val novo = mapOf(
+            "adulto" to nEmbarcou(embarcouAdt),
+            "chd" to nEmbarcou(embarcouChd),
+            "infantil" to nEmbarcou(embarcouInf),
+        )
+        val reservado = mapOf(
+            "adulto" to reserva.adt,
+            "chd" to reserva.chd,
+            "infantil" to reserva.inf,
+        )
+        val aumentou = novo.any { (chave, n) -> n > reservado.getValue(chave) }
+        val diminuiu = novo.any { (chave, n) -> n < reservado.getValue(chave) }
+        val naoEmbarcaram = mutableMapOf(
+            "jovem" to (reserva.parcial?.jovem ?: 0),
+            "idoso" to (reserva.parcial?.idoso ?: 0),
+        )
+        novo.forEach { (chave, n) ->
+            naoEmbarcaram[chave] = maxOf(reservado.getValue(chave), n) - n
+        }
+        val parcialIgual = (naoEmbarcaram["adulto"] ?: 0) == (reserva.parcial?.adulto ?: 0) &&
+            (naoEmbarcaram["chd"] ?: 0) == (reserva.parcial?.chd ?: 0) &&
+            (naoEmbarcaram["infantil"] ?: 0) == (reserva.parcial?.infantil ?: 0)
+
+        if (!aumentou && !diminuiu && (statusLocal != STATUS_PARCIAL || parcialIgual)) {
+            dialogoQtd = false
+            return
+        }
+
+        fun gravarStatusDaQuantidade() {
+            val temAusente = naoEmbarcaram.values.any { it > 0 }
+            when {
+                temAusente || diminuiu -> gravarStatus(STATUS_PARCIAL, parcial = naoEmbarcaram)
+                statusLocal == STATUS_PARCIAL -> gravarStatus(STATUS_CHECK_IN)
+                else -> dialogoQtd = false
+            }
+        }
+
+        erroStatus = null
+        if (aumentou) {
+            aoSalvarQuantidade(
+                PedidoQuantidadeReserva(
+                    adulto = maxOf(reserva.adt, novo.getValue("adulto")),
+                    chd = maxOf(reserva.chd, novo.getValue("chd")),
+                    infantil = maxOf(reserva.inf, novo.getValue("infantil")),
+                    jovem = reserva.jovem,
+                    idoso = reserva.idoso,
+                ),
+            ) { falha ->
+                if (falha != null) erroStatus = falha else gravarStatusDaQuantidade()
+            }
+        } else {
+            gravarStatusDaQuantidade()
         }
     }
 
@@ -2068,7 +2192,9 @@ private fun CartaoEmbarque(
             CampoCaixaEmbarque(
                 modifier = Modifier
                     .weight(1f)
-                    .widthIn(min = 0.dp),
+                    .widthIn(min = 0.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(enabled = podeEditarQtd) { abrirQuantidade() },
                 rotulo = null,
                 paddingHorizontal = 6.dp,
             ) {
@@ -2378,6 +2504,98 @@ private fun CartaoEmbarque(
             },
             dismissButton = {
                 TextButton(onClick = { dialogoMotivo = false }, enabled = !enviando) {
+                    Text(stringResource(R.string.cancelar))
+                }
+            },
+        )
+    }
+
+    if (dialogoQtd) {
+        AlertDialog(
+            onDismissRequest = { if (!enviando) dialogoQtd = false },
+            title = { Text(stringResource(R.string.qtd_pax_titulo)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.qtd_pax_categoria),
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Text(
+                            stringResource(R.string.qtd_pax_reservado),
+                            modifier = Modifier.padding(end = 16.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Text(
+                            stringResource(R.string.qtd_pax_embarcou),
+                            modifier = Modifier.width(80.dp),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                    listOf(
+                        Triple("ADT", reserva.adt, embarcouAdt to { v: String -> embarcouAdt = v }),
+                        Triple("CHD", reserva.chd, embarcouChd to { v: String -> embarcouChd = v }),
+                        Triple("INF", reserva.inf, embarcouInf to { v: String -> embarcouInf = v }),
+                    ).forEach { (rotulo, reservado, campo) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(rotulo, modifier = Modifier.weight(1f))
+                            Text("$reservado", modifier = Modifier.padding(end = 16.dp))
+                            OutlinedTextField(
+                                value = campo.first,
+                                onValueChange = { v -> campo.second(v.filter(Char::isDigit).take(3)) },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(80.dp),
+                            )
+                        }
+                    }
+
+                    capacidadeVeiculo?.let { capacidade ->
+                        val sobra = capacidade - ocupacaoPrevista
+                        val sufixo = when {
+                            sobra > 0 -> stringResource(R.string.qtd_pax_livres, sobra)
+                            sobra == 0 -> stringResource(R.string.qtd_pax_lotado)
+                            else -> stringResource(R.string.qtd_pax_acima, -sobra)
+                        }
+                        Text(
+                            stringResource(R.string.qtd_pax_assentos, ocupacaoPrevista, capacidade, sufixo),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (qtdExcedeVeiculo) {
+                            Text(
+                                stringResource(R.string.qtd_pax_sem_assento, lugaresOcupados, capacidade, lugaresAMais),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+
+                    erroStatus?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = ::salvarQuantidade,
+                    enabled = !enviando && !qtdExcedeVeiculo,
+                ) { Text(stringResource(R.string.salvar)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogoQtd = false }, enabled = !enviando) {
                     Text(stringResource(R.string.cancelar))
                 }
             },

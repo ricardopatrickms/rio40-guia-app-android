@@ -104,6 +104,16 @@
     <string name="checkin_motivo">Motivo</string>
     <string name="checkin_parcial_titulo">Quem não embarcou</string>
     <string name="checkin_parcial_invalido">Não pode faltar mais gente do que a reserva tem.</string>
+    <string name="qtd_pax_titulo">Quantidade de pax</string>
+    <string name="qtd_pax_categoria">Categoria</string>
+    <string name="qtd_pax_reservado">Reservado</string>
+    <string name="qtd_pax_embarcou">Embarcou</string>
+    <string name="qtd_pax_assentos">Assentos no veículo: %1$d/%2$d%3$s. Infantil não ocupa assento — o contador do topo (ex.: 51/53) é pax, não assento.</string>
+    <string name="qtd_pax_livres"> · %1$d livre(s)</string>
+    <string name="qtd_pax_lotado"> · lotado</string>
+    <string name="qtd_pax_acima"> · %1$d acima</string>
+    <string name="qtd_pax_sem_assento">Sem assento livre no veículo (%1$d/%2$d). Esta alteração pede +%3$d.</string>
+    <string name="salvar">Salvar</string>
     <string name="checkin_carregando_formas">Carregando formas de pagamento…</string>
     <string name="checkin_formas_erro">Não foi possível carregar as formas de pagamento.</string>
     <string name="checkin_formas_pagamento">Formas de pagamento</string>
