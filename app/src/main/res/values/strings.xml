@@ -120,6 +120,7 @@
     <string name="checkin_sem_forma">Nenhuma forma adicionada. Use \"Adicionar forma\" para dividir o pagamento.</string>
     <string name="checkin_adicionar_forma">Adicionar forma</string>
     <string name="checkin_salvar_pagamento">Salvar pagamento</string>
+    <string name="checkin_pagamento_salvo">Pagamento registrado.</string>
     <string name="checkin_selecionar_idioma">Selecionar idioma</string>
     <string name="checkin_tipo">Tipo</string>
     <string name="checkin_forma">Forma</string>

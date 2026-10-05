@@ -119,6 +119,7 @@ fun DialogCheckInEmbarque(
     aoRecarregar: () -> Unit,
 ) {
     var erro by remember { mutableStateOf<String?>(null) }
+    var pagamentoSalvo by remember { mutableStateOf(false) }
     var salvandoStatus by remember { mutableStateOf(false) }
     var salvandoPagamento by remember { mutableStateOf(false) }
     var salvandoIdioma by remember { mutableStateOf(false) }
@@ -522,6 +523,7 @@ fun DialogCheckInEmbarque(
                                 onClick = {
                                     salvandoPagamento = true
                                     erro = null
+                                    pagamentoSalvo = false
                                     val itens = entradas
                                         .filter { it.formaId != null && it.valor > 0 }
                                         .map {
@@ -534,10 +536,19 @@ fun DialogCheckInEmbarque(
                                         }
                                     acoes.salvarPagamentos(itens) { falha ->
                                         salvandoPagamento = false
-                                        if (falha == null) aoRecarregar() else erro = falha
+                                        if (falha == null) {
+                                            pagamentoSalvo = true
+                                            aoRecarregar()
+                                        } else {
+                                            erro = falha
+                                        }
                                     }
                                 },
-                                enabled = !bloqueado && !salvandoPagamento,
+                                // Só habilita com ao menos um pagamento VÁLIDO (forma
+                                // escolhida + valor > 0) — mesmo filtro do salvar. Linha
+                                // de forma vazia não habilita o botão.
+                                enabled = !bloqueado && !salvandoPagamento &&
+                                    entradas.any { it.formaId != null && it.valor > 0 },
                                 shape = FormaBotao,
                                 modifier = Modifier.height(36.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -586,11 +597,22 @@ fun DialogCheckInEmbarque(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = aoFechar,
-                enabled = !enviando && !salvandoStatus && !salvandoPagamento,
-            ) {
-                Text(stringResource(R.string.fechar))
+            // Footer: mensagem de sucesso acima do "Fechar", à direita (igual ao iOS).
+            Column(horizontalAlignment = Alignment.End) {
+                if (pagamentoSalvo && erro == null) {
+                    Text(
+                        stringResource(R.string.checkin_pagamento_salvo),
+                        color = Color(0xFF16A34A),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                TextButton(
+                    onClick = aoFechar,
+                    enabled = !enviando && !salvandoStatus && !salvandoPagamento,
+                ) {
+                    Text(stringResource(R.string.fechar))
+                }
             }
         },
     )
@@ -1077,11 +1099,9 @@ private fun LinhaResumo(
     cor: Color = Color.Unspecified,
     negrito: Boolean = false,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    // Rótulo em cima e valor embaixo: no card estreito (metade da largura) o
+    // valor não cabe ao lado e quebrava/cortava; empilhado, aparece inteiro.
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = rotulo,
             style = MaterialTheme.typography.bodySmall,
@@ -1091,7 +1111,6 @@ private fun LinhaResumo(
                 cor
             },
             fontWeight = if (negrito) FontWeight.SemiBold else FontWeight.Normal,
-            modifier = Modifier.padding(end = 12.dp),
         )
         Text(
             text = valor,

@@ -78,6 +78,7 @@ fun DialogPagamentoFornecedor(
     var carregando by remember { mutableStateOf(true) }
     var salvando by remember { mutableStateOf(false) }
     var erro by remember { mutableStateOf<String?>(null) }
+    var pagamentoSalvo by remember { mutableStateOf(false) }
 
     val entradas = remember {
         mutableStateListOf<EntradaForn>().apply {
@@ -305,43 +306,56 @@ fun DialogPagamentoFornecedor(
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !salvando && !carregando && !excede,
-                onClick = {
-                    salvando = true
-                    erro = null
-                    val itens = entradas
-                        .filter { it.formaId != null && it.valor > 0 }
-                        .map { e ->
-                            val credito = formas.firstOrNull { it.id == e.formaId }?.credito == true
-                            ItemPagamentoFornecedor(
-                                forma_id = e.formaId!!,
-                                valor = round2(e.valor),
-                                parcela_id = if (credito) e.parcelaId else null,
-                                id = e.pagId,
-                            )
-                        }
-                    aoSalvar(itens) { falha ->
-                        salvando = false
-                        if (falha == null) {
-                            aoRecarregar()
-                            aoFechar()
-                        } else {
-                            erro = falha
-                        }
-                    }
-                },
-            ) {
-                if (salvando) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
+            // Footer: mensagem de sucesso acima das ações, à direita (igual ao iOS).
+            Column(horizontalAlignment = Alignment.End) {
+                if (pagamentoSalvo && erro == null) {
+                    Text(
+                        stringResource(R.string.checkin_pagamento_salvo),
+                        color = Color(0xFF16A34A),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
                 }
-                Text(stringResource(R.string.mapa_pag_forn_salvar))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = aoFechar, enabled = !salvando) {
-                Text(stringResource(R.string.cancelar))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = aoFechar, enabled = !salvando) {
+                    Text(stringResource(R.string.cancelar))
+                }
+                TextButton(
+                    enabled = !salvando && !carregando && !excede,
+                    onClick = {
+                        salvando = true
+                        erro = null
+                        pagamentoSalvo = false
+                        val itens = entradas
+                            .filter { it.formaId != null && it.valor > 0 }
+                            .map { e ->
+                                val credito = formas.firstOrNull { it.id == e.formaId }?.credito == true
+                                ItemPagamentoFornecedor(
+                                    forma_id = e.formaId!!,
+                                    valor = round2(e.valor),
+                                    parcela_id = if (credito) e.parcelaId else null,
+                                    id = e.pagId,
+                                )
+                            }
+                        aoSalvar(itens) { falha ->
+                            salvando = false
+                            if (falha == null) {
+                                pagamentoSalvo = true
+                                aoRecarregar()
+                            } else {
+                                erro = falha
+                            }
+                        }
+                    },
+                ) {
+                    if (salvando) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(stringResource(R.string.mapa_pag_forn_salvar))
+                }
+                }
             }
         },
     )

@@ -569,45 +569,50 @@ fun TelaEmbarque(
                         }
                     }
 
-                    editando?.let { (mapa, reserva) ->
-                        val atual = pontos.firstOrNull { it.second.id == reserva.id } ?: (mapa to reserva)
-                        DialogCheckInEmbarque(
-                            reserva = atual.second,
-                            nomeTour = atual.first.tour,
-                            bloqueado = atual.first.bloqueado,
-                            enviando = enviando == atual.second.id,
-                            acoes = AcoesCheckIn(
-                                carregarMotivos = aoCarregarMotivos,
-                                carregarFormas = aoCarregarFormas,
-                                carregarParcelas = aoCarregarParcelas,
-                                carregarIdiomas = aoCarregarIdiomas,
-                                trocarStatus = { statusId, motivoId, parcial, aoTerminar ->
-                                    enviando = atual.second.id
-                                    aoTrocarStatus(
-                                        atual.second.id,
-                                        atual.first.id,
-                                        statusId,
-                                        motivoId,
-                                        parcial,
-                                    ) { falha ->
-                                        enviando = null
-                                        aoTerminar(falha)
-                                    }
-                                },
-                                salvarPagamentos = { itens, aoTerminar ->
-                                    aoSalvarPagamentos(atual.second.id, itens, aoTerminar)
-                                },
-                                salvarIdioma = { idiomaId, aoTerminar ->
-                                    aoSalvarIdioma(atual.second.id, idiomaId, aoTerminar)
-                                },
-                            ),
-                            aoFechar = { if (enviando != atual.second.id) editando = null },
-                            aoRecarregar = { atualizarEmSilencio() },
-                        )
-                    }
                 }
             }
         }
+    }
+
+    // Dialog de check-in FORA do subtree do mapa ao vivo (como no Mapa do dia):
+    // o mapa recompõe ~1x/s pelo GPS; dentro dele, o AcoesCheckIn era recriado a
+    // cada tick e o estado de "salvar pagamento" ficava instável (botão preso em
+    // loading, sem feedback). No nível da tela ele fica estável.
+    editando?.let { (mapa, reserva) ->
+        val atual = pontos.firstOrNull { it.second.id == reserva.id } ?: (mapa to reserva)
+        DialogCheckInEmbarque(
+            reserva = atual.second,
+            nomeTour = atual.first.tour,
+            bloqueado = atual.first.bloqueado,
+            enviando = enviando == atual.second.id,
+            acoes = AcoesCheckIn(
+                carregarMotivos = aoCarregarMotivos,
+                carregarFormas = aoCarregarFormas,
+                carregarParcelas = aoCarregarParcelas,
+                carregarIdiomas = aoCarregarIdiomas,
+                trocarStatus = { statusId, motivoId, parcial, aoTerminar ->
+                    enviando = atual.second.id
+                    aoTrocarStatus(
+                        atual.second.id,
+                        atual.first.id,
+                        statusId,
+                        motivoId,
+                        parcial,
+                    ) { falha ->
+                        enviando = null
+                        aoTerminar(falha)
+                    }
+                },
+                salvarPagamentos = { itens, aoTerminar ->
+                    aoSalvarPagamentos(atual.second.id, itens, aoTerminar)
+                },
+                salvarIdioma = { idiomaId, aoTerminar ->
+                    aoSalvarIdioma(atual.second.id, idiomaId, aoTerminar)
+                },
+            ),
+            aoFechar = { if (enviando != atual.second.id) editando = null },
+            aoRecarregar = { atualizarEmSilencio() },
+        )
     }
 }
 

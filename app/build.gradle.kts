@@ -94,7 +94,11 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "API_URL", "\"https://api-guia.titanx.ia.br/api/\"")
+            buildConfigField("String", "API_URL", "\"https://api-guide.titanx.ia.br/api/\"")
+            // Sem keystore de produção no projeto: assina com a chave de DEBUG
+            // só para o APK ser instalável. Mesmo pacote+SHA-1 do debug, então o
+            // Maps funciona. NÃO é assinatura real de produção (trocar quando houver keystore).
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -106,9 +110,10 @@ android {
     applicationVariants.all {
         val variante = this
         outputs.all {
-            if (variante.buildType.name == "homolog") {
-                (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
-                    .outputFileName = "app-titan-x-guide.apk"
+            val saida = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            when (variante.buildType.name) {
+                "homolog" -> saida.outputFileName = "app-titan-x-guide.apk"
+                "release" -> saida.outputFileName = "titan-x-guide.apk"
             }
         }
     }
@@ -125,6 +130,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // Falso positivo: registerForActivityResult é chamado na MainActivity
+        // (ComponentActivity), não num Fragment — a versão do fragment não importa.
+        // Só esse check bloqueava o build de release (lintVitalRelease).
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 }
 
