@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -34,6 +35,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,12 +47,14 @@ import androidx.compose.material.icons.Icons
 import android.widget.Toast
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonPin
 import androidx.compose.material.icons.filled.PinDrop
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AlertDialog
@@ -94,6 +99,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,6 +115,7 @@ import br.com.rio40graus.guiascale.rede.BloqueioGuia
 import br.com.rio40graus.guiascale.rede.DiasSemanaGuia
 import br.com.rio40graus.guiascale.rede.FichaGuia
 import br.com.rio40graus.guiascale.rede.FormaPagamento
+import br.com.rio40graus.guiascale.rede.TaxasAutonomiaBody
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
@@ -134,6 +141,7 @@ import br.com.rio40graus.guiascale.rede.ProgressoDaLei
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.runtime.key
+import br.com.rio40graus.guiascale.rede.CandidatoItem
 import br.com.rio40graus.guiascale.rede.GuiaSelectItem
 import br.com.rio40graus.guiascale.rede.Rede
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
@@ -172,6 +180,10 @@ import kotlin.coroutines.resume
  */
 /** Aviso quando o admin ainda não escolheu um guia para inspecionar. */
 private const val AVISO_SELECIONE_GUIA = "Selecione um guia para inspecionar."
+
+/** Guia operacional sem login: só o mapa de embarque é inspecionável. */
+private const val AVISO_GUIA_SEM_LOGIN =
+    "Este guia não tem login; só o mapa de embarque está disponível."
 
 class MainActivity : ComponentActivity() {
 
@@ -235,6 +247,7 @@ class MainActivity : ComponentActivity() {
                         aoCarregarParcelas = ::carregarParcelas,
                         aoCarregarIdiomas = ::carregarIdiomas,
                         aoSalvarPagamentos = ::salvarPagamentos,
+                        aoSalvarTaxas = ::salvarTaxasAutonomia,
                         aoSalvarIdioma = ::salvarIdioma,
                         aoCarregarOcorrencias = ::carregarOcorrencias,
                         aoCriarOcorrencia = ::criarOcorrencia,
@@ -369,9 +382,12 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val mapas = if (Sessao.ehAdmin) {
-                    val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
-                    Rede.api.mapaEmbarqueAdmin(id, data).mapas
+                    val usuId = Sessao.guiaInspecionadoId
+                    val parId = Sessao.guiaInspecionadoParId
+                    if (usuId == null && parId == null) {
+                        return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    }
+                    Rede.api.mapaEmbarqueAdmin(usuId, parId, data).mapas
                 } else {
                     Rede.api.mapaEmbarque(data).mapas
                 }
@@ -516,6 +532,25 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val resposta = Rede.api.salvarPagamentos(reservaId, PedidoPagamentos(itens))
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarTaxasAutonomia(
+        mapaId: Int,
+        taxIds: List<Int>,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarTaxasAutonomia(mapaId, TaxasAutonomiaBody(taxIds))
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
                 } else {
@@ -732,7 +767,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val kpis = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.painelAdmin(id, periodo)
                 } else {
                     Rede.api.painel(periodo)
@@ -749,7 +788,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val passeios = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.passeiosGuiaAdmin(id, periodo)
                 } else {
                     Rede.api.passeiosGuia(periodo)
@@ -766,7 +809,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val ag = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.agendaAdmin(id, de, ate)
                 } else {
                     Rede.api.agenda(de, ate)
@@ -783,7 +830,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val f = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.fichaAdmin(id)
                 } else {
                     Rede.api.ficha()
@@ -831,7 +882,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val blo = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.bloqueiosAdmin(id, from).bloqueios
                 } else {
                     Rede.api.listarBloqueios(from).bloqueios
@@ -903,7 +958,11 @@ class MainActivity : ComponentActivity() {
             try {
                 val sols = if (Sessao.ehAdmin) {
                     val id = Sessao.guiaInspecionadoId
-                        ?: return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                        ?: return@launch aoTerminar(
+                            null,
+                            if (Sessao.guiaInspecionadoParId != null) AVISO_GUIA_SEM_LOGIN
+                            else AVISO_SELECIONE_GUIA,
+                        )
                     Rede.api.solicitacoesAdmin(id, from).solicitacoes
                 } else {
                     Rede.api.listarSolicitacoes(from).solicitacoes
@@ -1032,6 +1091,7 @@ private fun Tela(
     aoCarregarParcelas: ((List<ParcelaOpcao>?, String?) -> Unit) -> Unit,
     aoCarregarIdiomas: ((List<IdiomaOpcao>?, String?) -> Unit) -> Unit,
     aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
+    aoSalvarTaxas: (Int, List<Int>, (String?) -> Unit) -> Unit,
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoCarregarOcorrencias: (Int, (List<OcorrenciaMapa>?, String?) -> Unit) -> Unit,
     aoCriarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
@@ -1159,7 +1219,8 @@ private fun Tela(
 
             val contexto = LocalContext.current
             // Admin: qual guia está sendo inspecionado. Trocar recarrega as telas.
-            var guiaInspId by remember { mutableStateOf(Sessao.guiaInspecionadoId) }
+            // A chave muda tanto por login (usu_id) quanto por parceiro sem login.
+            var guiaInspKey by remember { mutableStateOf(Sessao.chaveInspecao()) }
 
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
@@ -1172,22 +1233,23 @@ private fun Tela(
                 if (Sessao.ehAdmin) {
                     SeletorGuiaAdmin(
                         aba = aba,
-                        guiaAtualId = guiaInspId,
-                        aoSelecionar = { g ->
-                            Sessao.guardarGuiaInspecionado(contexto, g.usu_id, g.nome)
-                            guiaInspId = g.usu_id
+                        usuAtualId = Sessao.guiaInspecionadoId,
+                        parAtualId = Sessao.guiaInspecionadoParId,
+                        aoSelecionar = { usuId, parId, nome ->
+                            Sessao.guardarGuiaInspecionado(contexto, usuId, parId, nome)
+                            guiaInspKey = Sessao.chaveInspecao()
                         },
                     )
                 }
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    if (Sessao.ehAdmin && guiaInspId == null) {
+                    if (Sessao.ehAdmin && guiaInspKey == null) {
                         // Admin recém-entrou: aguarda a auto-seleção do primeiro guia,
                         // sem mostrar mensagem de "selecione um guia".
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
-                    } else key(guiaInspId) {
-                    // key(guiaInspId): ao trocar o guia inspecionado, as telas são
+                    } else key(guiaInspKey) {
+                    // key(guiaInspKey): ao trocar o guia inspecionado, as telas são
                     // recriadas e recarregam os dados do guia novo.
                     when (aba) {
                         Aba.PAINEL -> TelaPainel(
@@ -1216,6 +1278,7 @@ private fun Tela(
                             aoCarregarParcelas = aoCarregarParcelas,
                             aoCarregarIdiomas = aoCarregarIdiomas,
                             aoSalvarPagamentos = aoSalvarPagamentos,
+                            aoSalvarTaxas = aoSalvarTaxas,
                             aoSalvarIdioma = aoSalvarIdioma,
                             aoCarregarOcorrencias = aoCarregarOcorrencias,
                             aoCriarOcorrencia = aoCriarOcorrencia,
@@ -1321,35 +1384,110 @@ private fun Tela(
  * Embarque = Mapa de embarque do web; Check-in = Geocheck-in.
  * Radar = tempo, vento/mar e trânsito, igual ao Radar do web.
  */
+/** Status do guia nas abas do seletor (espelha parceiros_status_tipos). */
+private enum class StatusGuia(val rotulo: String) {
+    ATIVO("Ativos"), INATIVO("Inativos"), BLOQUEADO("Bloqueados")
+}
+
+/** Um guia na lista do seletor de inspeção. */
+private data class GuiaInspecao(
+    val parId: Int,
+    val usuId: Int?,
+    val nome: String,
+    val status: StatusGuia,
+)
+
+// parceiros.par_idstatus — ver GuiaSelectController / CandidatoController.
+private const val INSP_PAR_STATUS_ATIVO = 3
+private const val INSP_PAR_STATUS_SUSPENSO = 5
+private const val INSP_PAR_STATUS_BLOQUEADO = 6
+
+/** Sem acento e em minúsculo, para a busca casar "José" com "jose". */
+private fun semAcento(texto: String): String =
+    java.text.Normalizer.normalize(texto, java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase()
+
 /**
- * Tarja de função do administrador — espelho do TarjaDeFuncao.tsx do web.
+ * Lista do seletor = guias/select-options (parceiros guia ATIVOS, com e sem
+ * login) + candidatos (preenche inativos/bloqueados e reforça o usu_id). Mesma
+ * regra do useGuiasDoPainel.ts do web — por isso o app agora mostra os mesmos
+ * guias, inclusive os sem login (que só o mapa de embarque inspeciona).
+ */
+private fun mesclarGuias(
+    selectOptions: List<GuiaSelectItem>,
+    candidatos: List<CandidatoItem>,
+): List<GuiaInspecao> {
+    val porPar = LinkedHashMap<Int, GuiaInspecao>()
+
+    for (g in selectOptions) {
+        val nome = g.nome?.trim().orEmpty()
+        if (nome.isEmpty()) continue
+        porPar[g.id] = GuiaInspecao(parId = g.id, usuId = g.usu_id, nome = nome, status = StatusGuia.ATIVO)
+    }
+
+    for (c in candidatos) {
+        val s = c.status?.uppercase().orEmpty()
+        if (s == "CANCELADO" || s == "REPROVADO") continue
+        val parId = c.par_id ?: continue
+        val nome = c.nome?.trim().orEmpty()
+        if (nome.isEmpty()) continue
+        val status = when (c.par_idstatus) {
+            INSP_PAR_STATUS_ATIVO -> StatusGuia.ATIVO
+            INSP_PAR_STATUS_SUSPENSO, INSP_PAR_STATUS_BLOQUEADO -> StatusGuia.BLOQUEADO
+            else -> StatusGuia.INATIVO
+        }
+        val existente = porPar[parId]
+        if (existente != null) {
+            // Já veio do select-options; só completa o usu_id se faltava.
+            if (existente.usuId == null && c.usu_id != null) {
+                porPar[parId] = existente.copy(usuId = c.usu_id)
+            }
+            continue
+        }
+        porPar[parId] = GuiaInspecao(parId = parId, usuId = c.usu_id, nome = nome, status = status)
+    }
+
+    val ordem = mapOf(StatusGuia.ATIVO to 0, StatusGuia.INATIVO to 1, StatusGuia.BLOQUEADO to 2)
+    return porPar.values.sortedWith(compareBy({ ordem[it.status] }, { semAcento(it.nome) }))
+}
+
+/**
+ * Tarja de função do administrador — espelho do TarjaDeFuncao.tsx + do
+ * SeletorGuiaAdmin.tsx do web.
  *
- * Mostra "Função atual: Administrador" com um texto que muda por tela (o mapa é
- * somente leitura etc.) e, ao lado, "Guia inspecionado:" com o seletor. A lista
- * vem de guias/select-options; só entram guias com login (usu_id), que são os
- * que têm painel/ficha/mapa para o admin abrir.
+ * Mostra "Função atual: Administrador" com um texto que muda por tela e, ao
+ * lado, "Guia inspecionado:" com o seletor. O botão abre um diálogo com busca
+ * por nome e abas Ativos/Inativos/Bloqueados, idêntico ao web.
  */
 @Composable
 private fun SeletorGuiaAdmin(
     aba: Aba,
-    guiaAtualId: Int?,
-    aoSelecionar: (GuiaSelectItem) -> Unit,
+    usuAtualId: Int?,
+    parAtualId: Int?,
+    aoSelecionar: (usuId: Int?, parId: Int?, nome: String?) -> Unit,
 ) {
-    var guias by remember { mutableStateOf<List<GuiaSelectItem>>(emptyList()) }
-    var menu by remember { mutableStateOf(false) }
+    var guias by remember { mutableStateOf<List<GuiaInspecao>>(emptyList()) }
+    var carregando by remember { mutableStateOf(true) }
+    var dialogAberto by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        runCatching { Rede.api.guiasSelect() }
-            .onSuccess { resp ->
-                val lista = resp.guias.filter { it.usu_id != null }
-                guias = lista
-                // Já entra com o primeiro guia selecionado, se nenhum foi escolhido —
-                // assim o admin cai direto no painel de alguém, sem tela vazia.
-                if (guiaAtualId == null) lista.firstOrNull()?.let { aoSelecionar(it) }
-            }
+        val selectOptions = runCatching { Rede.api.guiasSelect().guias }.getOrDefault(emptyList())
+        val candidatos = runCatching { Rede.api.candidatos().candidatos }.getOrDefault(emptyList())
+        guias = mesclarGuias(selectOptions, candidatos)
+        carregando = false
+        // Já entra com o primeiro ativo selecionado, se nada foi escolhido —
+        // assim o admin cai direto no painel de alguém, sem tela vazia.
+        if (usuAtualId == null && parAtualId == null) {
+            (guias.firstOrNull { it.status == StatusGuia.ATIVO } ?: guias.firstOrNull())
+                ?.let { aoSelecionar(it.usuId, it.parId, it.nome) }
+        }
     }
 
-    val atual = guias.firstOrNull { it.usu_id == guiaAtualId }
+    val atual = guias.firstOrNull {
+        (usuAtualId != null && it.usuId == usuAtualId) ||
+            (usuAtualId == null && parAtualId != null && it.parId == parAtualId)
+    }
 
     // Texto por tela, igual ao POR_ROTA/PADRAO do web.
     val texto = when (aba) {
@@ -1395,32 +1533,195 @@ private fun SeletorGuiaAdmin(
                 Spacer(Modifier.width(8.dp))
                 Box(modifier = Modifier.weight(1f)) {
                     OutlinedButton(
-                        onClick = { menu = true },
+                        onClick = { dialogAberto = true },
                         shape = FormaBotaoPequeno,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            atual?.nome ?: "Selecione um guia",
+                            atual?.nome ?: if (carregando) "Carregando…" else "Selecione um guia",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
                         Icon(Icons.Filled.UnfoldMore, null, modifier = Modifier.size(16.dp))
                     }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        if (guias.isEmpty()) {
-                            DropdownMenuItem(text = { Text("Carregando…") }, onClick = {})
-                        }
-                        guias.forEach { g ->
-                            DropdownMenuItem(
-                                text = { Text(g.nome ?: "—") },
-                                onClick = { aoSelecionar(g); menu = false },
+                }
+            }
+        }
+    }
+
+    if (dialogAberto) {
+        DialogSeletorGuia(
+            guias = guias,
+            usuAtualId = usuAtualId,
+            parAtualId = parAtualId,
+            aoFechar = { dialogAberto = false },
+            aoEscolher = { g ->
+                aoSelecionar(g.usuId, g.parId, g.nome)
+                dialogAberto = false
+            },
+        )
+    }
+}
+
+/** Diálogo de escolha do guia: busca por nome + abas por status, igual ao web. */
+@Composable
+private fun DialogSeletorGuia(
+    guias: List<GuiaInspecao>,
+    usuAtualId: Int?,
+    parAtualId: Int?,
+    aoFechar: () -> Unit,
+    aoEscolher: (GuiaInspecao) -> Unit,
+) {
+    var busca by remember { mutableStateOf("") }
+    var abaStatus by remember { mutableStateOf(StatusGuia.ATIVO) }
+
+    val contagem = remember(guias) {
+        StatusGuia.values().associateWith { st -> guias.count { it.status == st } }
+    }
+    val filtrados = remember(guias, busca, abaStatus) {
+        val q = semAcento(busca.trim())
+        guias.asSequence()
+            .filter { it.status == abaStatus }
+            .filter { q.isEmpty() || semAcento(it.nome).contains(q) }
+            .toList()
+    }
+
+    Dialog(onDismissRequest = aoFechar) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Guia inspecionado",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = busca,
+                    onValueChange = { busca = it },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    placeholder = { Text("Pesquisar por parte do nome…") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    StatusGuia.values().forEach { st ->
+                        // Igual ao web: só a aba selecionada vira pílula preenchida;
+                        // as outras são texto simples. Separador "·".
+                        val selecionada = abaStatus == st
+                        Text(
+                            "${st.rotulo} · ${contagem[st] ?: 0}",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            fontWeight = if (selecionada) FontWeight.Medium else FontWeight.Normal,
+                            color = if (selecionada) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    if (selecionada) MaterialTheme.colorScheme.primary
+                                    else Color.Transparent,
+                                )
+                                .clickable { abaStatus = st }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                if (filtrados.isEmpty()) {
+                    Box(
+                        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Nenhum guia encontrado",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                        items(filtrados, key = { it.parId }) { g ->
+                            val selecionado = (usuAtualId != null && g.usuId == usuAtualId) ||
+                                (usuAtualId == null && parAtualId != null && g.parId == parAtualId)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { aoEscolher(g) }
+                                    .padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = if (selecionado) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    g.nome,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (selecionado) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (g.status == StatusGuia.ATIVO) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                when (g.status) {
+                                    StatusGuia.INATIVO ->
+                                        EtiquetaStatus("Inativo", MaterialTheme.colorScheme.onSurfaceVariant)
+                                    StatusGuia.BLOQUEADO ->
+                                        EtiquetaStatus("Bloqueado", MaterialTheme.colorScheme.error)
+                                    StatusGuia.ATIVO -> Unit
+                                }
+                            }
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                             )
                         }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = aoFechar) { Text("Fechar") }
+                }
             }
         }
+    }
+}
+
+/** Etiqueta pequena de status (Inativo/Bloqueado) ao lado do nome. */
+@Composable
+private fun EtiquetaStatus(texto: String, cor: Color) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Transparent,
+        border = androidx.compose.foundation.BorderStroke(1.dp, cor.copy(alpha = 0.5f)),
+        modifier = Modifier.padding(start = 6.dp),
+    ) {
+        Text(
+            texto,
+            color = cor,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }
 

@@ -136,7 +136,28 @@ data class MapaEmbarque(
     val ocupacao: OcupacaoMapa? = null,
     val totais: TotaisMapa? = null,
     val caixa: CaixaMapa? = null,
+    // Taxas de acesso que o guia decide (vale para todas as reservas do mapa).
+    val taxa_guia: TaxaGuiaMapa? = null,
     val reservas: List<ReservaEmbarque> = emptyList(),
+)
+
+/** Taxa de acesso que o guia pode marcar (ex.: "Taxa Mirante Rocinha" R$10/pessoa). */
+data class TaxaGuiaOpcao(
+    val id: Int,
+    val nome: String? = null,
+    val valor: Double = 0.0,
+)
+
+/** Taxas de acesso do mapa: opções do tour, as marcadas e os ids marcados. */
+data class TaxaGuiaMapa(
+    val opcoes: List<TaxaGuiaOpcao> = emptyList(),
+    val escolhidas: List<TaxaGuiaOpcao> = emptyList(),
+    val escolhidas_ids: List<Int> = emptyList(),
+)
+
+/** Corpo do POST de taxas de acesso: ids marcados (vazio = limpar). */
+data class TaxasAutonomiaBody(
+    val tax_ids: List<Int>,
 )
 
 data class VeiculoMapa(
@@ -464,6 +485,13 @@ interface ApiGuias {
         @Body corpo: PedidoIdioma,
     ): Response<Unit>
 
+    // Taxas de acesso que o guia decide (por mapa). Vazio = limpar.
+    @POST("guia/mapa/{mapaId}/taxas-autonomia")
+    suspend fun salvarTaxasAutonomia(
+        @Path("mapaId") mapaId: Int,
+        @Body corpo: TaxasAutonomiaBody,
+    ): Response<Unit>
+
     @POST("guia/fornecedor/{acertoFornecedorId}/pagamentos")
     suspend fun salvarPagamentosFornecedor(
         @Path("acertoFornecedorId") acertoFornecedorId: Int,
@@ -578,9 +606,14 @@ interface ApiGuias {
     @GET("guias/select-options")
     suspend fun guiasSelect(@Query("data") data: String? = null): RespostaGuiasSelect
 
+    /** Candidatos/guias cadastrados — completa as abas Inativos/Bloqueados do seletor. */
+    @GET("candidatos")
+    suspend fun candidatos(): RespostaCandidatos
+
     @GET("escala/mapa-embarque")
     suspend fun mapaEmbarqueAdmin(
-        @Query("usu_id") usuId: Int,
+        @Query("usu_id") usuId: Int? = null,
+        @Query("par_id") parId: Int? = null,
         @Query("data") data: String? = null,
     ): RespostaMapas
 
@@ -653,6 +686,21 @@ data class GuiaSelectItem(
     val usu_id: Int? = null,
     val atende_no_dia: Boolean = true,
     val solicitacao_trabalho: String? = null,
+)
+
+data class RespostaCandidatos(
+    val candidatos: List<CandidatoItem> = emptyList(),
+)
+
+/** Só os campos que o seletor usa; o endpoint devolve bem mais. */
+data class CandidatoItem(
+    val usu_id: Int? = null,
+    val par_id: Int? = null,
+    val nome: String? = null,
+    /** Status do candidato (ex.: CANCELADO/REPROVADO são ignorados). */
+    val status: String? = null,
+    /** parceiros.par_idstatus — 3 ativo, 5 suspenso, 6 bloqueado. */
+    val par_idstatus: Int? = null,
 )
 
 data class PedidoOrdemReservas(val reservas: List<Int>)

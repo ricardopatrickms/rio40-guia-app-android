@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -89,6 +91,8 @@ import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadeReserva
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
+import br.com.rio40graus.guiascale.rede.TaxaGuiaMapa
+import br.com.rio40graus.guiascale.rede.TaxaGuiaOpcao
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
 import br.com.rio40graus.guiascale.rede.PagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
@@ -135,6 +139,7 @@ fun TelaMapaEmbarque(
     aoCarregarParcelas: ((List<ParcelaOpcao>?, String?) -> Unit) -> Unit,
     aoCarregarIdiomas: ((List<IdiomaOpcao>?, String?) -> Unit) -> Unit,
     aoSalvarPagamentos: (Int, List<ItemPagamento>, (String?) -> Unit) -> Unit,
+    aoSalvarTaxas: (mapaId: Int, taxIds: List<Int>, aoTerminar: (String?) -> Unit) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
     aoSalvarIdioma: (Int, Int, (String?) -> Unit) -> Unit,
     aoCarregarOcorrencias: (mapaId: Int, aoTerminar: (List<OcorrenciaMapa>?, String?) -> Unit) -> Unit,
     aoCriarOcorrencia: (mapaId: Int, relato: String, aoTerminar: (String?) -> Unit) -> Unit,
@@ -178,6 +183,10 @@ fun TelaMapaEmbarque(
     var erroOcorrencia by remember { mutableStateOf<String?>(null) }
     var editandoFornecedor by remember { mutableStateOf<FornecedorUi?>(null) }
     var marcandoMeia by remember { mutableStateOf<FornecedorUi?>(null) }
+    // Taxas de acesso do dia (decisão do guia, por mapa).
+    var taxasDialogAberto by remember { mutableStateOf(false) }
+    var taxasSalvando by remember { mutableStateOf(false) }
+    val contextoTela = LocalContext.current
     // Só uma seção expansível aberta por vez (TOUR / FORNECEDORES / …).
     var secaoAbertaId by remember(mapaSelecionadoId) {
         mutableStateOf<String?>(SecaoMapaIds.TOUR)
@@ -531,6 +540,15 @@ fun TelaMapaEmbarque(
                             },
                             dragHandleModifier = handle,
                         ) {
+                            // Taxas de acesso do dia (decisão do guia) — no topo da lista,
+                            // igual ao web: vale p/ todas as reservas do mapa.
+                            mapa.taxa_guia?.takeIf { it.opcoes.isNotEmpty() }?.let { tg ->
+                                CardTaxasDoDia(
+                                    taxa = tg,
+                                    habilitado = !mapa.bloqueado && !Sessao.ehAdmin,
+                                    aoAbrir = { taxasDialogAberto = true },
+                                )
+                            }
                             if (mapa.reservas.isEmpty()) {
                                 Text(
                                     stringResource(R.string.mapa_embarque_sem_embarque),
@@ -757,6 +775,30 @@ fun TelaMapaEmbarque(
                 aoFechar = { if (enviando != atual.id) editando = null },
                 aoRecarregar = { recarregarSilencioso() },
             )
+        }
+
+        if (taxasDialogAberto) {
+            mapaAtual?.taxa_guia?.let { tg ->
+                DialogTaxasDoDia(
+                    taxa = tg,
+                    salvando = taxasSalvando,
+                    aoFechar = { if (!taxasSalvando) taxasDialogAberto = false },
+                    aoSalvar = { ids ->
+                        val idMapa = mapaAtual?.id ?: return@DialogTaxasDoDia
+                        taxasSalvando = true
+                        aoSalvarTaxas(idMapa, ids) { falha ->
+                            taxasSalvando = false
+                            if (falha == null) {
+                                taxasDialogAberto = false
+                                recarregarSilencioso()
+                                Toast.makeText(contextoTela, "Taxas do dia atualizadas.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(contextoTela, falha, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                )
+            }
         }
 
         excluirOcorrenciaId?.let { idExcluir ->
@@ -2917,7 +2959,10 @@ private fun SecaoExpansivel(
                     .height(1.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant),
             )
-            Box(modifier = Modifier.padding(12.dp)) { conteudo() }
+            // Column (não Box): o conteúdo de uma seção pode ter mais de um filho
+            // (ex.: EMBARQUES tem o card de Taxas do dia + a lista). Num Box eles
+            // se sobrepõem e o primeiro fica escondido atrás da lista.
+            Column(modifier = Modifier.padding(12.dp)) { conteudo() }
         }
     }
 }
@@ -3131,5 +3176,132 @@ private fun isoDeMillisMapa(ms: Long): String {
         cal.get(Calendar.YEAR),
         cal.get(Calendar.MONTH) + 1,
         cal.get(Calendar.DAY_OF_MONTH),
+    )
+}
+
+/** Card "TAXAS DO DIA" no topo do mapa: mostra as taxas marcadas e abre a seleção. */
+@Composable
+private fun CardTaxasDoDia(
+    taxa: TaxaGuiaMapa,
+    habilitado: Boolean,
+    aoAbrir: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "TAXAS DO DIA",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                if (habilitado) {
+                    OutlinedButton(onClick = aoAbrir) {
+                        Text(
+                            if (taxa.escolhidas.isEmpty()) "Marcar" else "Alterar",
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            if (taxa.escolhidas.isEmpty()) {
+                Text(
+                    "Nenhuma taxa marcada para cobrar hoje.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                taxa.escolhidas.forEach { t ->
+                    Text(
+                        "${t.nome.orEmpty()} · ${dinheiro(t.valor)} / pessoa",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Diálogo para marcar quais taxas de acesso serão cobradas no passeio (por mapa). */
+@Composable
+private fun DialogTaxasDoDia(
+    taxa: TaxaGuiaMapa,
+    salvando: Boolean,
+    aoFechar: () -> Unit,
+    aoSalvar: (List<Int>) -> Unit,
+) {
+    var marcados by remember { mutableStateOf(taxa.escolhidas_ids.toSet()) }
+
+    AlertDialog(
+        onDismissRequest = aoFechar,
+        title = { Text("Taxas do dia") },
+        text = {
+            Column {
+                Text(
+                    "Marque todas as taxas cobradas no passeio. Elas entram no valor a receber de cada reserva.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                taxa.opcoes.forEach { op ->
+                    val marcado = op.id in marcados
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !salvando) {
+                                marcados = if (marcado) marcados - op.id else marcados + op.id
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = marcado,
+                            onCheckedChange = null,
+                            enabled = !salvando,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(op.nome.orEmpty(), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${dinheiro(op.valor)} por pessoa",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { aoSalvar(marcados.toList()) },
+                enabled = !salvando,
+            ) {
+                if (salvando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = aoFechar, enabled = !salvando) {
+                Text("Cancelar")
+            }
+        },
     )
 }

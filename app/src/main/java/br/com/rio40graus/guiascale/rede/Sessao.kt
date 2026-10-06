@@ -23,6 +23,7 @@ object Sessao {
     private const val CHAVE_USU_ID = "usu_id"
     private const val CHAVE_TIPO = "tipo"
     private const val CHAVE_GUIA_INSP_ID = "guia_insp_id"
+    private const val CHAVE_GUIA_INSP_PARID = "guia_insp_parid"
     private const val CHAVE_GUIA_INSP_NOME = "guia_insp_nome"
 
     @Volatile
@@ -57,9 +58,24 @@ object Sessao {
     var guiaInspecionadoId: Int? = null
         private set
 
+    /**
+     * Admin: o parceiro do guia inspecionado (parceiros.par_id).
+     *
+     * Guia operacional/apoio sem login não tem usu_id; o mapa de embarque é
+     * inspecionável por par_id (as demais telas exigem login). Ver web
+     * (SeletorGuiaAdmin.tsx: id `erp:` com login, `par:` sem login).
+     */
+    @Volatile
+    var guiaInspecionadoParId: Int? = null
+        private set
+
     @Volatile
     var guiaInspecionadoNome: String? = null
         private set
+
+    /** Chave única da inspeção (muda ao trocar de guia). Null = ninguém escolhido. */
+    fun chaveInspecao(): String? =
+        guiaInspecionadoId?.let { "u$it" } ?: guiaInspecionadoParId?.let { "p$it" }
 
     val autenticado: Boolean
         get() = !token.isNullOrBlank()
@@ -77,6 +93,7 @@ object Sessao {
         usuId = prefs.getInt(CHAVE_USU_ID, 0).takeIf { it > 0 }
         tipo = prefs.getString(CHAVE_TIPO, null)
         guiaInspecionadoId = prefs.getInt(CHAVE_GUIA_INSP_ID, 0).takeIf { it > 0 }
+        guiaInspecionadoParId = prefs.getInt(CHAVE_GUIA_INSP_PARID, 0).takeIf { it > 0 }
         guiaInspecionadoNome = prefs.getString(CHAVE_GUIA_INSP_NOME, null)
     }
 
@@ -95,6 +112,7 @@ object Sessao {
         this.tipo = tipo
         // Troca de sessão zera o guia inspecionado.
         this.guiaInspecionadoId = null
+        this.guiaInspecionadoParId = null
         this.guiaInspecionadoNome = null
 
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
@@ -102,6 +120,7 @@ object Sessao {
             putString(CHAVE_LOGIN, login)
             putString(CHAVE_TIPO, tipo)
             remove(CHAVE_GUIA_INSP_ID)
+            remove(CHAVE_GUIA_INSP_PARID)
             remove(CHAVE_GUIA_INSP_NOME)
             if (this@Sessao.nome != null) {
                 putString(CHAVE_NOME, this@Sessao.nome)
@@ -116,16 +135,29 @@ object Sessao {
         }
     }
 
-    /** Admin escolhe qual guia inspecionar. */
-    fun guardarGuiaInspecionado(contexto: Context, usuId: Int?, nome: String?) {
+    /**
+     * Admin escolhe qual guia inspecionar. `usuId` quando o guia tem login;
+     * `parId` é o parceiro (serve ao mapa mesmo sem login). Guardamos os dois:
+     * o mapa usa usu_id quando há, senão par_id.
+     */
+    fun guardarGuiaInspecionado(contexto: Context, usuId: Int?, parId: Int?, nome: String?) {
         this.guiaInspecionadoId = usuId?.takeIf { it > 0 }
+        this.guiaInspecionadoParId = parId?.takeIf { it > 0 }
         this.guiaInspecionadoNome = nome
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
             if (this@Sessao.guiaInspecionadoId != null) {
                 putInt(CHAVE_GUIA_INSP_ID, this@Sessao.guiaInspecionadoId!!)
-                putString(CHAVE_GUIA_INSP_NOME, nome)
             } else {
                 remove(CHAVE_GUIA_INSP_ID)
+            }
+            if (this@Sessao.guiaInspecionadoParId != null) {
+                putInt(CHAVE_GUIA_INSP_PARID, this@Sessao.guiaInspecionadoParId!!)
+            } else {
+                remove(CHAVE_GUIA_INSP_PARID)
+            }
+            if (this@Sessao.guiaInspecionadoId != null || this@Sessao.guiaInspecionadoParId != null) {
+                putString(CHAVE_GUIA_INSP_NOME, nome)
+            } else {
                 remove(CHAVE_GUIA_INSP_NOME)
             }
         }
@@ -153,6 +185,7 @@ object Sessao {
         usuId = null
         tipo = null
         guiaInspecionadoId = null
+        guiaInspecionadoParId = null
         guiaInspecionadoNome = null
 
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit { clear() }

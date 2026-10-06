@@ -54,6 +54,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.rio40graus.guiascale.rede.BloqueioGuia
 import br.com.rio40graus.guiascale.rede.DiasSemanaGuia
+import br.com.rio40graus.guiascale.rede.Sessao
 import br.com.rio40graus.guiascale.ui.tema.FormaBotao
 import br.com.rio40graus.guiascale.ui.tema.FormaCartao
 import java.text.SimpleDateFormat
@@ -95,6 +96,8 @@ fun DialogBloqueioDatas(
     var selecionadas by remember { mutableStateOf<Set<String>>(emptySet()) }
     var motivo by remember { mutableStateOf("") }
     var bloqueios by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Dias já decididos (aprovado/recusado): o guia não mexe — é do escritório.
+    var decididas by remember { mutableStateOf<Set<String>>(emptySet()) }
     var ocupados by remember { mutableStateOf<Set<String>>(emptySet()) }
     var escala by remember { mutableStateOf<DiasSemanaGuia?>(null) }
     var carregando by remember { mutableStateOf(true) }
@@ -125,7 +128,17 @@ fun DialogBloqueioDatas(
         }
         aoCarregarBloqueios(hojeIso) { lista, falha ->
             if (falha != null) erro = falha
-            bloqueios = lista.orEmpty().map { it.date.take(10) }.toSet()
+            val l = lista.orEmpty()
+            // Vermelho = dia realmente bloqueado. RECUSADO deixa o dia livre, não
+            // entra no vermelho (igual ao web, que o mostra como histórico).
+            bloqueios = l.filter { (it.situacao ?: "").lowercase() != "recusada" }
+                .map { it.date.take(10) }
+                .toSet()
+            // Decidido = tudo que não é PENDENTE (aprovado/recusado/sem situação),
+            // igual ao jaDecidida do web. PENDENTE o guia ainda cancela.
+            decididas = l.filter { (it.situacao ?: "").lowercase() != "pendente" }
+                .map { it.date.take(10) }
+                .toSet()
             pronto()
         }
         aoCarregarDiasSemana { dados, falha ->
@@ -149,6 +162,9 @@ fun DialogBloqueioDatas(
 
     fun diaDesabilitado(iso: String, cal: Calendar): Boolean {
         if (iso < hojeIso) return true
+        // Guia não seleciona dia já decidido (aprovado/recusado) — quem remove é
+        // o escritório. PENDENTE segue selecionável para o guia cancelar.
+        if (!Sessao.ehAdmin && decididas.contains(iso)) return true
         val restrito = escala?.restrito == true
         if (restrito) {
             val dow = cal.get(Calendar.DAY_OF_WEEK) // 1=dom … 7=sáb
@@ -164,12 +180,23 @@ fun DialogBloqueioDatas(
             aviso = "Você tem reserva em ${fmtExibir.format(cal.time)}. Para bloquear este dia, fale com o escritório."
             return
         }
-        aviso = null
-        selecionadas = if (selecionadas.contains(iso)) {
-            selecionadas - iso
-        } else {
-            selecionadas + iso
+        val jaSelecionado = selecionadas.contains(iso)
+        // Não misturar: a seleção é só de dias livres (para bloquear) ou só de
+        // dias já bloqueados (para desbloquear). Como ela é homogênea, o modo
+        // vem de qualquer item já marcado.
+        if (!jaSelecionado && selecionadas.isNotEmpty()) {
+            val modoBloqueado = bloqueios.contains(selecionadas.first())
+            if (bloqueios.contains(iso) != modoBloqueado) {
+                aviso = if (modoBloqueado) {
+                    "Você está desbloqueando. Conclua ou limpe a seleção para bloquear dias livres."
+                } else {
+                    "Você está bloqueando. Conclua ou limpe a seleção para desbloquear dias."
+                }
+                return
+            }
         }
+        aviso = null
+        selecionadas = if (jaSelecionado) selecionadas - iso else selecionadas + iso
     }
 
     fun aplicar(bloquear: Boolean) {
@@ -189,11 +216,18 @@ fun DialogBloqueioDatas(
             }
         }
         if (bloquear) {
-            aoSalvar(datas, motivo.trim().ifBlank { null }, aoTerminar)
+            aoSalvar(datas, motivo.trim(), aoTerminar)
         } else {
             aoRemover(datas, aoTerminar)
         }
     }
+
+    // Dia livre → só "Bloquear"; dia já bloqueado → só "Desbloquear".
+    // Seleção mista mostra os dois; sem seleção, mostra só "Bloquear".
+    val selecaoTemBloqueado = selecionadas.any { bloqueios.contains(it) }
+    val selecaoTemLivre = selecionadas.any { !bloqueios.contains(it) }
+    val mostrarDesbloquear = selecaoTemBloqueado
+    val mostrarBloquear = selecaoTemLivre || selecionadas.isEmpty()
 
     val nomesDiasEscala = remember(escala) {
         val nomes = listOf("domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado")
@@ -361,20 +395,24 @@ fun DialogBloqueioDatas(
                         }
                     }
 
-                    Text(
-                        text = stringResource(R.string.bloqueio_motivo_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedTextField(
-                        value = motivo,
-                        onValueChange = { if (it.length <= 500) motivo = it },
-                        placeholder = { Text(stringResource(R.string.bloqueio_motivo_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        maxLines = 3,
-                        shape = FormaBotao,
-                    )
+                    // Motivo só faz sentido ao bloquear — some quando a seleção é
+                    // só de dias já bloqueados (modo desbloquear).
+                    if (mostrarBloquear) {
+                        Text(
+                            text = stringResource(R.string.bloqueio_motivo_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            value = motivo,
+                            onValueChange = { if (it.length <= 500) motivo = it },
+                            placeholder = { Text(stringResource(R.string.bloqueio_motivo_hint)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            maxLines = 3,
+                            shape = FormaBotao,
+                        )
+                    }
                 }
 
                 aviso?.let {
@@ -404,18 +442,25 @@ fun DialogBloqueioDatas(
                         Text(stringResource(R.string.cancelar))
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    OutlinedButton(
-                        onClick = { aplicar(bloquear = false) },
-                        enabled = !salvando && !carregando && selecionadas.isNotEmpty(),
-                        shape = FormaBotao,
-                    ) {
-                        Text(stringResource(R.string.bloqueio_desbloquear, selecionadas.size))
+                    // Desbloquear só quando há dia bloqueado na seleção.
+                    if (mostrarDesbloquear) {
+                        OutlinedButton(
+                            onClick = { aplicar(bloquear = false) },
+                            enabled = !salvando && !carregando && selecionadas.isNotEmpty(),
+                            shape = FormaBotao,
+                        ) {
+                            Text(stringResource(R.string.bloqueio_desbloquear, selecionadas.size))
+                        }
                     }
-                    Button(
-                        onClick = { aplicar(bloquear = true) },
-                        enabled = !salvando && !carregando && selecionadas.isNotEmpty(),
-                        shape = FormaBotao,
-                    ) {
+                    // Bloquear só quando há dia livre (ou nada selecionado ainda).
+                    if (mostrarBloquear) {
+                        Button(
+                            onClick = { aplicar(bloquear = true) },
+                            // Motivo obrigatório para bloquear (desbloquear não precisa).
+                            enabled = !salvando && !carregando &&
+                                selecionadas.isNotEmpty() && motivo.isNotBlank(),
+                            shape = FormaBotao,
+                        ) {
                         if (salvando) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
@@ -425,6 +470,7 @@ fun DialogBloqueioDatas(
                             Spacer(modifier = Modifier.size(8.dp))
                         }
                         Text(stringResource(R.string.bloqueio_bloquear, selecionadas.size))
+                        }
                     }
                 }
             }

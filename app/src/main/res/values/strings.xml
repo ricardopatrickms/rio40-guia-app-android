@@ -334,7 +334,7 @@
     <string name="painel_ficha_sem_esp">Sem dados nos últimos 12 meses.</string>
 
     <string name="bloqueio_titulo">Bloquear em várias datas</string>
-    <string name="bloqueio_motivo_label">Motivo do bloqueio (opcional)</string>
+    <string name="bloqueio_motivo_label">Motivo do bloqueio (obrigatório)</string>
     <string name="bloqueio_motivo_hint">Ex.: férias, atestado médico, viagem pessoal…</string>
     <string name="bloqueio_bloquear">Bloquear (%1$d)</string>
     <string name="bloqueio_desbloquear">Desbloquear (%1$d)</string>
