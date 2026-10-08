@@ -1,6 +1,7 @@
 package br.com.rio40graus.guiascale
 
 import android.location.Location
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -320,9 +322,25 @@ fun TelaEmbarque(
         }
     }
 
+    val contexto = LocalContext.current
+    // Resolvida = status já lançado pelo guia: Check-in, No show ou Parcial.
+    val statusResolvidos = setOf(STATUS_CHECK_IN, STATUS_NO_SHOW, STATUS_PARCIAL)
+    val reservasPendentes = pontos.count { it.second.status?.id !in statusResolvidos }
+
     val aoIniciarOuParar: () -> Unit = {
         if (embarqueAtivo) {
-            aoAlternarEmbarque(null)
+            // Só encerra o embarque quando TODAS as reservas tiverem ação
+            // lançada (check-in / no show / parcial). Senão, avisa o que falta.
+            if (reservasPendentes > 0) {
+                Toast.makeText(
+                    contexto,
+                    "Finalize todas as reservas antes de encerrar: faltam $reservasPendentes " +
+                        "(marque check-in, no show ou parcial).",
+                    Toast.LENGTH_LONG,
+                ).show()
+            } else {
+                aoAlternarEmbarque(null)
+            }
         } else if (mapaParaRastreio != null) {
             // Sem mapa do dia não inicia: o rastro precisa de dono.
             aoAlternarEmbarque(mapaParaRastreio)

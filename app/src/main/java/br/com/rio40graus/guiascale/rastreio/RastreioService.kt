@@ -7,22 +7,26 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.location.Location
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import br.com.rio40graus.guiascale.MainActivity
 import br.com.rio40graus.guiascale.R
 import br.com.rio40graus.guiascale.dados.BancoLocal
 import br.com.rio40graus.guiascale.dados.Posicao
+import br.com.rio40graus.guiascale.rede.PedidoEncerramento
+import br.com.rio40graus.guiascale.rede.Rede
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -70,14 +74,13 @@ class RastreioService : LifecycleService() {
                 atualizarNotificacao()
 
                 /*
-                 * Empurra a fila de tempos em tempos, sem esperar o ciclo de 15
-                 * minutos do WorkManager. Com rede boa o rastro fica quase ao
-                 * vivo; sem rede, o pedido falha e a fila continua guardando.
+                 * Tempo real a partir da FILA: grava o ponto e já tenta esvaziar
+                 * a fila, a cada captura (~8s). Com rede, o painel vê o guia se
+                 * mover em segundos; sem rede, a subida falha e a fila guarda —
+                 * a próxima captura (ou o EnvioWorker) sobe o que ficou para
+                 * trás. Um lugar só guarda e envia. Ver SincronizadorPosicoes.
                  */
-                if (capturadas % PONTOS_ENTRE_ENVIOS == 0) {
-                    WorkManager.getInstance(applicationContext)
-                        .enqueue(OneTimeWorkRequestBuilder<EnvioWorker>().build())
-                }
+                subirFila()
             }
         }
     }
@@ -91,7 +94,7 @@ class RastreioService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
 
         if (intent?.action == ACAO_PARAR) {
-            pararTudo()
+            encerrarEParar()
             return START_NOT_STICKY
         }
 
@@ -165,10 +168,107 @@ class RastreioService : LifecycleService() {
 
         try {
             cliente.requestLocationUpdates(pedido, recebedor, mainLooper)
+            // Grava e envia uma posição NA HORA do início do embarque, para o
+            // painel ver o guia já no começo — sem esperar o 1º fix contínuo nem
+            // o lote. Ver capturarPrimeiroPonto.
+            capturarPrimeiroPonto()
         } catch (erro: SecurityException) {
             // Permissão revogada com o serviço no ar. Sem ela não há o que
             // fazer aqui — a tela cuida de pedir de novo.
             pararTudo()
+        }
+    }
+
+    /**
+     * O ponto do "início do embarque": pega a posição atual uma vez e já grava +
+     * envia. O fluxo contínuo só entrega o 1º ponto quando o GPS fixa e manda em
+     * lote; aqui o painel enxerga o guia na hora que ele inicia.
+     */
+    private fun capturarPrimeiroPonto() {
+        try {
+            cliente.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                CancellationTokenSource().token,
+            ).addOnSuccessListener { local ->
+                if (local != null) salvarEEnviar(local)
+            }
+        } catch (erro: SecurityException) {
+            // Sem permissão; a tela só liga o rastreio quando ela existe.
+        }
+    }
+
+    /** Grava o ponto na fila local e já tenta subi-la (o início do embarque). */
+    private fun salvarEEnviar(local: Location) {
+        lifecycleScope.launch {
+            dao.inserir(
+                Posicao(
+                    latitude = local.latitude,
+                    longitude = local.longitude,
+                    precisao = if (local.hasAccuracy()) local.accuracy else null,
+                    velocidade = if (local.hasSpeed()) local.speed else null,
+                    capturadoEm = local.time,
+                    mapaId = EstadoRastreio.mapaId(this@RastreioService),
+                )
+            )
+            capturadas++
+            atualizarNotificacao()
+            subirFila()
+        }
+    }
+
+    /**
+     * Esvazia a fila local agora, em processo, para o painel ver o guia em
+     * tempo real — a cada captura, não a cada lote. Único caminho de envio,
+     * compartilhado com o EnvioWorker. Falhando (sem rede), a fila guarda e a
+     * próxima chamada sobe o que ficou. Ver SincronizadorPosicoes.
+     */
+    private suspend fun subirFila() {
+        SincronizadorPosicoes.subir(this@RastreioService)
+    }
+
+    /**
+     * Encerramento: sobe o que falta da fila, marca o ponto final no painel,
+     * limpa o storage local do embarque (já está tudo no servidor) e então para
+     * o rastreio. Roda num escopo próprio para sobreviver ao stopSelf.
+     */
+    private fun encerrarEParar() {
+        val mapa = EstadoRastreio.mapaId(this)
+        val concluir: (Double?, Double?) -> Unit = { lat, lng ->
+            CoroutineScope(Dispatchers.IO).launch {
+                // 1) Sobe o que ainda está na fila, para o servidor ter o
+                //    trajeto completo antes de limparmos o aparelho.
+                SincronizadorPosicoes.subir(this@RastreioService)
+
+                // 2) Marca no painel onde o guia encerrou (bandeira vermelha).
+                if (lat != null && lng != null) {
+                    try {
+                        Rede.api.encerrarEmbarque(PedidoEncerramento(lat, lng, mapa))
+                    } catch (erro: Exception) {
+                        // Best-effort: o que importa é encerrar o rastreio.
+                    }
+                }
+
+                // 3) Já salvo no banco: apaga do aparelho o que confirmou envio.
+                //    O que não subiu (sem rede) fica para o EnvioWorker levar.
+                try {
+                    dao.limparEnviadas()
+                } catch (erro: Exception) {
+                    // Falha de storage não pode impedir o encerramento.
+                }
+            }
+            pararTudo()
+        }
+        try {
+            cliente.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                CancellationTokenSource().token,
+            ).addOnSuccessListener { local ->
+                concluir(local?.latitude, local?.longitude)
+            }.addOnFailureListener {
+                concluir(null, null)
+            }
+        } catch (erro: SecurityException) {
+            concluir(null, null)
         }
     }
 
@@ -239,9 +339,6 @@ class RastreioService : LifecycleService() {
 
         /** Abaixo disso é a van parada, ou o erro do próprio GPS. */
         private const val DESLOCAMENTO_MINIMO_M = 5f
-
-        /** ~5 minutos de captura entre um empurrão e outro na fila. */
-        private const val PONTOS_ENTRE_ENVIOS = 20
 
         const val ACAO_PARAR = "br.com.rio40graus.guiascale.PARAR"
 

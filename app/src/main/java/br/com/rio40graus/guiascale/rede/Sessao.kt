@@ -20,6 +20,7 @@ object Sessao {
     private const val CHAVE_TOKEN = "token"
     private const val CHAVE_LOGIN = "login"
     private const val CHAVE_NOME = "nome"
+    private const val CHAVE_FOTO = "foto"
     private const val CHAVE_USU_ID = "usu_id"
     private const val CHAVE_TIPO = "tipo"
     private const val CHAVE_GUIA_INSP_ID = "guia_insp_id"
@@ -37,6 +38,11 @@ object Sessao {
     /** Nome da pessoa (pes_nome), igual ao "GUIA:" do web. */
     @Volatile
     var nome: String? = null
+        private set
+
+    /** URL da foto do guia (a mesma do avatar do mapa), quando houver. */
+    @Volatile
+    var foto: String? = null
         private set
 
     /** `usuarios.usu_id` — compara com `ocorrencia.usuario_id` (editar/excluir). */
@@ -90,6 +96,7 @@ object Sessao {
         token = prefs.getString(CHAVE_TOKEN, null)
         login = prefs.getString(CHAVE_LOGIN, null)
         nome = prefs.getString(CHAVE_NOME, null)
+        foto = prefs.getString(CHAVE_FOTO, null)
         usuId = prefs.getInt(CHAVE_USU_ID, 0).takeIf { it > 0 }
         tipo = prefs.getString(CHAVE_TIPO, null)
         guiaInspecionadoId = prefs.getInt(CHAVE_GUIA_INSP_ID, 0).takeIf { it > 0 }
@@ -110,6 +117,8 @@ object Sessao {
         this.nome = nome?.takeIf { it.isNotBlank() }
         this.usuId = usuId?.takeIf { it > 0 }
         this.tipo = tipo
+        // Nova sessão: a foto vem depois, no /guia/me.
+        this.foto = null
         // Troca de sessão zera o guia inspecionado.
         this.guiaInspecionadoId = null
         this.guiaInspecionadoParId = null
@@ -119,6 +128,7 @@ object Sessao {
             putString(CHAVE_TOKEN, token)
             putString(CHAVE_LOGIN, login)
             putString(CHAVE_TIPO, tipo)
+            remove(CHAVE_FOTO)
             remove(CHAVE_GUIA_INSP_ID)
             remove(CHAVE_GUIA_INSP_PARID)
             remove(CHAVE_GUIA_INSP_NOME)
@@ -163,9 +173,10 @@ object Sessao {
         }
     }
 
-    fun guardarPerfil(contexto: Context, nome: String?, usuId: Int? = null) {
+    fun guardarPerfil(contexto: Context, nome: String?, usuId: Int? = null, foto: String? = null) {
         this.nome = nome?.takeIf { it.isNotBlank() }
         if (usuId != null && usuId > 0) this.usuId = usuId
+        this.foto = foto?.takeIf { it.isNotBlank() }
         contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
             if (this@Sessao.nome != null) {
                 putString(CHAVE_NOME, this@Sessao.nome)
@@ -175,6 +186,23 @@ object Sessao {
             if (this@Sessao.usuId != null) {
                 putInt(CHAVE_USU_ID, this@Sessao.usuId!!)
             }
+            if (this@Sessao.foto != null) {
+                putString(CHAVE_FOTO, this@Sessao.foto)
+            } else {
+                remove(CHAVE_FOTO)
+            }
+        }
+    }
+
+    /** Guarda só a foto — usado logo após o guia trocar a foto no app. */
+    fun guardarFoto(contexto: Context, foto: String?) {
+        this.foto = foto?.takeIf { it.isNotBlank() }
+        contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).edit {
+            if (this@Sessao.foto != null) {
+                putString(CHAVE_FOTO, this@Sessao.foto)
+            } else {
+                remove(CHAVE_FOTO)
+            }
         }
     }
 
@@ -182,6 +210,7 @@ object Sessao {
         token = null
         login = null
         nome = null
+        foto = null
         usuId = null
         tipo = null
         guiaInspecionadoId = null

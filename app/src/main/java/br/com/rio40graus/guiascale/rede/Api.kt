@@ -3,6 +3,7 @@ package br.com.rio40graus.guiascale.rede
 import android.content.Context
 import br.com.rio40graus.guiascale.BuildConfig
 import br.com.rio40graus.guiascale.R
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONObject
@@ -13,8 +14,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
@@ -91,7 +94,16 @@ data class PosicaoEnviada(
 
 data class LotePosicoes(val posicoes: List<PosicaoEnviada>)
 
+data class PedidoEncerramento(
+    val latitude: Double,
+    val longitude: Double,
+    val mapa_id: Int?,
+)
+
 data class RespostaLote(val ok: Boolean, val gravadas: Int)
+
+/** Resposta do envio de foto: a URL pública da foto nova. */
+data class FotoResposta(val foto: String? = null)
 
 /** Trajeto já no servidor — um dia, opcionalmente de um mapa só. */
 data class RespostaPosicoesDia(
@@ -429,6 +441,15 @@ interface ApiGuias {
 
     @POST("guia/posicoes")
     suspend fun enviarPosicoes(@Body lote: LotePosicoes): RespostaLote
+
+    /** Encerramento do embarque: marca no painel onde o guia parou. */
+    @POST("guia/embarque/encerrar")
+    suspend fun encerrarEmbarque(@Body corpo: PedidoEncerramento): Response<Unit>
+
+    /** O guia troca a própria foto (cabeçalho, perfil e avatar do mapa). */
+    @Multipart
+    @POST("guia/foto")
+    suspend fun enviarFoto(@Part foto: MultipartBody.Part): Response<FotoResposta>
 
     /** Trajeto gravado no servidor; com mapa_id vem só o daquele embarque. */
     @GET("guia/posicoes")

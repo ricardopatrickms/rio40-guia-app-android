@@ -89,6 +89,17 @@ interface PosicaoDao {
     /** Faxina do que já subiu e não serve mais para exibir. */
     @Query("DELETE FROM posicoes WHERE enviada = 1 AND capturadoEm < :antesDe")
     suspend fun limparEnviadasAntesDe(antesDe: Long)
+
+    /**
+     * Apaga TUDO que já subiu — usado ao encerrar o embarque.
+     *
+     * Durante o embarque os pontos ficam para o guia ver a linha no mapa, mesmo
+     * offline. Quando ele encerra, o trajeto já está no servidor, então o que
+     * confirmou envio sai do aparelho. O que ainda NÃO subiu (enviada = 0) fica:
+     * o EnvioWorker sobe depois, e nada se perde.
+     */
+    @Query("DELETE FROM posicoes WHERE enviada = 1")
+    suspend fun limparEnviadas()
 }
 
 @Database(entities = [Posicao::class], version = 1, exportSchema = false)

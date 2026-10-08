@@ -8,14 +8,6 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import br.com.rio40graus.guiascale.dados.BancoLocal
-import br.com.rio40graus.guiascale.rede.LotePosicoes
-import br.com.rio40graus.guiascale.rede.PosicaoEnviada
-import br.com.rio40graus.guiascale.rede.Rede
-import br.com.rio40graus.guiascale.rede.Sessao
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -34,56 +26,22 @@ class EnvioWorker(
 ) : CoroutineWorker(contexto, parametros) {
 
     override suspend fun doWork(): Result {
-        Sessao.carregar(applicationContext)
-
-        // Sem token não há para quem mandar. Não é falha: é o guia deslogado.
-        if (!Sessao.autenticado) return Result.success()
-
-        val dao = BancoLocal.obter(applicationContext).posicoes()
-        val formato = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-
-        repeat(MAXIMO_DE_LOTES_POR_EXECUCAO) {
-            val pendentes = dao.pendentes(TAMANHO_DO_LOTE)
-            if (pendentes.isEmpty()) return Result.success()
-
-            val lote = LotePosicoes(
-                posicoes = pendentes.map {
-                    PosicaoEnviada(
-                        latitude = it.latitude,
-                        longitude = it.longitude,
-                        precisao = it.precisao,
-                        velocidade = it.velocidade,
-                        capturado_em = formato.format(Date(it.capturadoEm)),
-                        mapa_id = it.mapaId,
-                    )
-                }
-            )
-
-            try {
-                Rede.api.enviarPosicoes(lote)
-                dao.marcarEnviadas(pendentes.map { it.id })
-            } catch (erro: Exception) {
-                /*
-                 * Falhou: nada é marcado como enviado e o WorkManager tenta de
-                 * novo, com espera crescente. A fila é a rede de segurança —
-                 * ponto nenhum se perde por erro de envio.
-                 */
-                return Result.retry()
-            }
+        /*
+         * A lógica de subir a fila mora num lugar só — SincronizadorPosicoes —
+         * compartilhada com o envio ao vivo do serviço. Aqui é a rede de
+         * segurança: roda mesmo com o app fechado e só acorda quando há rede.
+         *
+         * Falhou (sem conseguir esvaziar tudo): retry, com espera crescente. A
+         * fila guarda — ponto nenhum se perde por erro de envio.
+         */
+        return if (SincronizadorPosicoes.subir(applicationContext)) {
+            Result.success()
+        } else {
+            Result.retry()
         }
-
-        return Result.success()
     }
 
     companion object {
-        private const val TAMANHO_DO_LOTE = 500
-
-        /**
-         * Teto por execução: ~8 mil pontos, mais de um dia de captura. Evita
-         * que uma fila gigante prenda o worker até o Android matá-lo.
-         */
-        private const val MAXIMO_DE_LOTES_POR_EXECUCAO = 16
-
         private const val NOME = "envio-de-posicoes"
 
         /**

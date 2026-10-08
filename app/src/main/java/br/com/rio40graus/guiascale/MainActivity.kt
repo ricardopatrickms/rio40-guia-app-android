@@ -144,6 +144,15 @@ import androidx.compose.runtime.key
 import br.com.rio40graus.guiascale.rede.CandidatoItem
 import br.com.rio40graus.guiascale.rede.GuiaSelectItem
 import br.com.rio40graus.guiascale.rede.Rede
+import androidx.activity.compose.rememberLauncherForActivityResult
+import coil.compose.AsyncImage
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.Sessao
@@ -329,6 +338,7 @@ class MainActivity : ComponentActivity() {
                     this@MainActivity,
                     nomeDoGuia(me.user, me.guia),
                     usuIdDoGuia(me.user, me.guia),
+                    me.user?.user_metadata?.foto,
                 )
             } catch (_: Exception) {
                 // Sem nome o app continua; só exibe o login.
@@ -349,6 +359,7 @@ class MainActivity : ComponentActivity() {
                     this@MainActivity,
                     nomeDoGuia(me.user, me.guia),
                     usuIdDoGuia(me.user, me.guia),
+                    me.user?.user_metadata?.foto,
                 )
                 aoTerminar(Sessao.nomeExibicao)
             } catch (_: Exception) {
@@ -1853,6 +1864,35 @@ private fun CabecalhoTopo(
     val iniciais = remember(nome) { iniciaisDoNome(nome.ifBlank { Sessao.login }) }
     var menuAberto by remember { mutableStateOf(false) }
 
+    // "Subir foto": troca a foto do guia (reflete no cabeçalho/perfil do web e no
+    // avatar do mapa). Abre a galeria; o envio roda fora da thread da UI.
+    val contexto = LocalContext.current
+    val escopo = rememberCoroutineScope()
+    var enviandoFoto by remember { mutableStateOf(false) }
+    // A foto do avatar: começa com a do Sessao e re-sincroniza quando o /guia/me
+    // termina (o nome muda) ou quando o guia troca a foto aqui.
+    var fotoUrl by remember { mutableStateOf(Sessao.foto) }
+    LaunchedEffect(nomeGuia) { Sessao.foto?.let { fotoUrl = it } }
+    val seletorFoto = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        enviandoFoto = true
+        escopo.launch {
+            val nova = enviarFotoDoGuia(contexto, uri)
+            enviandoFoto = false
+            if (nova != null) {
+                Sessao.guardarFoto(contexto, nova)
+                fotoUrl = nova
+            }
+            Toast.makeText(
+                contexto,
+                if (nova != null) "Foto atualizada!" else "Não foi possível enviar a foto.",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
     Surface(
         color = Color.White,
         shadowElevation = 0.dp,
@@ -1895,12 +1935,22 @@ private fun CabecalhoTopo(
                             ) { menuAberto = true },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = iniciais,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        val foto = fotoUrl
+                        if (!foto.isNullOrBlank()) {
+                            AsyncImage(
+                                model = foto,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Text(
+                                text = iniciais,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                     DropdownMenu(
                         expanded = menuAberto,
@@ -1925,6 +1975,19 @@ private fun CabecalhoTopo(
                             }
                         }
                         HorizontalDivider()
+                        DropdownMenuItem(
+                            text = {
+                                Text(if (enviandoFoto) "Enviando foto..." else "Subir foto")
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Filled.PhotoCamera, contentDescription = null)
+                            },
+                            enabled = !enviandoFoto,
+                            onClick = {
+                                menuAberto = false
+                                seletorFoto.launch("image/*")
+                            },
+                        )
                         DropdownMenuItem(
                             text = {
                                 Text(
@@ -1954,6 +2017,34 @@ private fun CabecalhoTopo(
         }
     }
 }
+
+/**
+ * Envia a foto escolhida na galeria para a guias-api (guia/foto). Lê os bytes
+ * do Uri, monta o multipart e sobe fora da thread da UI. A mesma foto passa a
+ * valer no cabeçalho/perfil do web e no avatar do mapa.
+ */
+private suspend fun enviarFotoDoGuia(contexto: Context, uri: Uri): String? =
+    withContext(Dispatchers.IO) {
+        try {
+            val tipo = contexto.contentResolver.getType(uri) ?: "image/jpeg"
+            val ext = when {
+                tipo.contains("png") -> "png"
+                tipo.contains("webp") -> "webp"
+                else -> "jpg"
+            }
+            val bytes = contexto.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return@withContext null
+            // Mesmo teto do servidor: 5 MB.
+            if (bytes.isEmpty() || bytes.size > 5 * 1024 * 1024) return@withContext null
+
+            val corpo = bytes.toRequestBody(tipo.toMediaTypeOrNull())
+            val parte = MultipartBody.Part.createFormData("foto", "foto.$ext", corpo)
+            val resp = Rede.api.enviarFoto(parte)
+            if (resp.isSuccessful) resp.body()?.foto else null
+        } catch (erro: Exception) {
+            null
+        }
+    }
 
 private fun iniciaisDoNome(nome: String?): String {
     if (nome.isNullOrBlank()) return "?"
