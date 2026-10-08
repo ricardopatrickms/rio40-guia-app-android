@@ -68,10 +68,21 @@ android {
     val apiDeDebug = (project.findProperty("guiascale.apiUrl") as String?)
         ?: "http://10.0.2.2:8092/api/"
 
+    /*
+     * PAINEL_URL: raiz do backend do painel (rio40graus). As imagens dos
+     * produtos ficam no storage dele, e a guias-api devolve só o caminho
+     * relativo — igual ao VITE_RIO40GRAUS_API_URL do app web.
+     *
+     *     ./gradlew -Pguiascale.painelUrl=http://192.168.0.10:8000/ installDebug
+     */
+    val painelDeDebug = (project.findProperty("guiascale.painelUrl") as String?)
+        ?: "http://10.0.2.2:8000/"
+
     buildTypes {
         debug {
             isMinifyEnabled = false
             buildConfigField("String", "API_URL", "\"$apiDeDebug\"")
+            buildConfigField("String", "PAINEL_URL", "\"$painelDeDebug\"")
         }
         /*
          * homolog: APK para o pessoal testar contra o ambiente de homologação.
@@ -90,11 +101,13 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
             buildConfigField("String", "API_URL", "\"https://api-homol-guide.titanx.ia.br/api/\"")
+            buildConfigField("String", "PAINEL_URL", "\"https://api-homol-painel.titanx.ia.br/\"")
         }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "API_URL", "\"https://api-guide.titanx.ia.br/api/\"")
+            buildConfigField("String", "PAINEL_URL", "\"https://api-painel.titanx.ia.br/\"")
             // Sem keystore de produção no projeto: assina com a chave de DEBUG
             // só para o APK ser instalável. Mesmo pacote+SHA-1 do debug, então o
             // Maps funciona. NÃO é assinatura real de produção (trocar quando houver keystore).

@@ -280,6 +280,11 @@ data class ReservaEmbarque(
     val a_receber: Double = 0.0,
     val valor: Double = 0.0,
     val taxas: Double = 0.0,
+    /**
+     * Produtos lançados na reserva (quantidade × valor registrado). Ficam
+     * fora de a_receber: o card soma por cima, igual ao web.
+     */
+    val produtos: Double = 0.0,
     val cortesia: Double? = null,
     val telefone: String? = null,
     val observacao: String? = null,
@@ -308,6 +313,35 @@ data class PagamentoLancado(
     val valor: Double = 0.0,
     val taxa: Double = 0.0,
 )
+
+/** Produto do passeio oferecido na reserva — espelho do `ProdutoVitrine` do web. */
+data class ProdutoVitrine(
+    val id: Int,
+    val nome: String? = null,
+    val imagem: String? = null,
+    val valor: Double = 0.0,
+    val quantidade: Int = 0,
+    val obrigatorio: Boolean = false,
+    val decisao_guia: Boolean = false,
+    val valor_registrado: Boolean = false,
+)
+
+/** Reserva do mapa com os produtos que ela pode receber. */
+data class ReservaVitrine(
+    val id: Int,
+    val nome: String? = null,
+    val voucher: String? = null,
+    val produtos: List<ProdutoVitrine> = emptyList(),
+) {
+    val quantidadeTotal: Int get() = produtos.sumOf { it.quantidade }
+    val valorTotal: Double get() = produtos.sumOf { it.quantidade * it.valor }
+}
+
+data class RespostaVitrine(val reservas: List<ReservaVitrine>? = null)
+
+data class ItemProdutoReserva(val produto_venda_id: Int, val quantidade: Int)
+
+data class PedidoProdutosReserva(val produtos: List<ItemProdutoReserva>)
 
 data class OcorrenciaMapa(
     val id: Int,
@@ -512,6 +546,17 @@ interface ApiGuias {
         @Path("mapaId") mapaId: Int,
         @Body corpo: TaxasAutonomiaBody,
     ): Response<Unit>
+
+    // Produtos do passeio (ex.: Drone) que o guia lança no embarque do dia.
+    @GET("guia/mapa/{mapaId}/produtos")
+    suspend fun produtosMapa(@Path("mapaId") mapaId: Int): RespostaVitrine
+
+    @POST("guia/mapa/{mapaId}/reservas/{reservaId}/produtos")
+    suspend fun salvarProdutosReserva(
+        @Path("mapaId") mapaId: Int,
+        @Path("reservaId") reservaId: Int,
+        @Body corpo: PedidoProdutosReserva,
+    ): Response<RespostaVitrine>
 
     @POST("guia/fornecedor/{acertoFornecedorId}/pagamentos")
     suspend fun salvarPagamentosFornecedor(

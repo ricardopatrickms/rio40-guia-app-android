@@ -88,6 +88,8 @@ import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.CategoriasPax
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
+import br.com.rio40graus.guiascale.rede.ItemProdutoReserva
+import br.com.rio40graus.guiascale.rede.ReservaVitrine
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadeReserva
 import br.com.rio40graus.guiascale.rede.PedidoQuantidadesFornecedor
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
@@ -161,6 +163,16 @@ fun TelaMapaEmbarque(
         aoTerminar: (String?) -> Unit,
     ) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit = {},
+    aoCarregarProdutos: (
+        mapaId: Int,
+        aoTerminar: (List<ReservaVitrine>?, String?) -> Unit,
+    ) -> Unit = { _, aoTerminar -> aoTerminar(null, null) },
+    aoSalvarProdutos: (
+        mapaId: Int,
+        reservaId: Int,
+        itens: List<ItemProdutoReserva>,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit = { _, _, _, aoTerminar -> aoTerminar(null) },
 ) {
     val hojeIso = remember { dataIsoMapaHoje() }
     var dataSelecionada by remember { mutableStateOf(hojeIso) }
@@ -186,6 +198,10 @@ fun TelaMapaEmbarque(
     // Taxas de acesso do dia (decisão do guia, por mapa).
     var taxasDialogAberto by remember { mutableStateOf(false) }
     var taxasSalvando by remember { mutableStateOf(false) }
+    // Vitrine de produtos do mapa (mapaId → reservas que podem receber produto).
+    var vitrine by remember { mutableStateOf<Pair<Int, List<ReservaVitrine>>?>(null) }
+    var vitrineReservaId by remember { mutableStateOf<Int?>(null) }
+    var produtosSalvando by remember { mutableStateOf(false) }
     val contextoTela = LocalContext.current
     // Só uma seção expansível aberta por vez (TOUR / FORNECEDORES / …).
     var secaoAbertaId by remember(mapaSelecionadoId) {
@@ -302,6 +318,28 @@ fun TelaMapaEmbarque(
             ocorrencias = lista.orEmpty()
         }
     }
+
+    // A rota de produtos é do guia; o admin (somente leitura) fica sem a vitrine.
+    fun recarregarProdutos() {
+        val id = mapaAtual?.id ?: return
+        if (Sessao.ehAdmin) return
+        aoCarregarProdutos(id) { lista, _ ->
+            if (lista != null) vitrine = id to lista
+        }
+    }
+
+    LaunchedEffect(mapaAtual?.id, recarregar) { recarregarProdutos() }
+
+    // Reservas com produto no passeio. Fora daqui = passeio sem produto (sem chip).
+    val vitrineDoMapa: Map<Int, ReservaVitrine> = vitrine
+        ?.takeIf { it.first == mapaAtual?.id }
+        ?.second
+        ?.associateBy { it.id }
+        .orEmpty()
+
+    /** quantidade × valor da vitrine; sem vitrine, o total que veio no mapa. */
+    fun produtosValorDe(reserva: ReservaEmbarque): Double =
+        vitrineDoMapa[reserva.id]?.valorTotal ?: reserva.produtos
 
     if (mostrarCalendario) {
         val estadoData = rememberDatePickerState(
@@ -511,7 +549,7 @@ fun TelaMapaEmbarque(
                                     if (secaoAbertaId == SecaoMapaIds.TOUR) null else SecaoMapaIds.TOUR
                             },
                             dragHandleModifier = handle,
-                        ) { SecaoTour(mapa) }
+                        ) { SecaoTour(mapa, produtosValor = ::produtosValorDe) }
 
                                 SecaoMapaIds.FORNECEDORES -> SecaoExpansivel(
                             titulo = stringResource(R.string.mapa_embarque_fornecedores),
@@ -599,6 +637,9 @@ fun TelaMapaEmbarque(
                                             aoCarregarMotivos = aoCarregarMotivos,
                                             capacidadeVeiculo = capacidadeVeiculo,
                                             lugaresOcupados = lugaresOcupados,
+                                            produtosQtd = vitrineDoMapa[reserva.id]?.quantidadeTotal,
+                                            produtosValor = produtosValorDe(reserva),
+                                            aoAbrirProdutos = { vitrineReservaId = reserva.id },
                                             aoSalvarQuantidade = { quantidades, aoTerminar ->
                                                 enviando = reserva.id
                                                 aoSalvarQuantidadeReserva(reserva.id, quantidades) { falha ->
@@ -749,7 +790,9 @@ fun TelaMapaEmbarque(
         editando?.let { (mapa, reserva) ->
             val atual = mapa.reservas.firstOrNull { it.id == reserva.id } ?: reserva
             DialogCheckInEmbarque(
-                reserva = atual,
+                // A conferência fecha contra o saldo + produtos, como no web
+                // (PagamentosReserva recebe aReceber = totalNum).
+                reserva = atual.copy(a_receber = atual.a_receber + produtosValorDe(atual)),
                 nomeTour = mapa.tour,
                 bloqueado = mapa.bloqueado,
                 enviando = enviando == atual.id,
@@ -799,6 +842,33 @@ fun TelaMapaEmbarque(
                     },
                 )
             }
+        }
+
+        val mapaVitrine = mapaAtual
+        val reservaVitrine = vitrineReservaId?.let { vitrineDoMapa[it] }
+        if (mapaVitrine != null && reservaVitrine != null) {
+            val idMapa = mapaVitrine.id
+            val reservaId = reservaVitrine.id
+            DialogProdutosReserva(
+                reserva = reservaVitrine,
+                bloqueado = mapaVitrine.bloqueado || Sessao.ehAdmin,
+                salvando = produtosSalvando,
+                aoFechar = { if (!produtosSalvando) vitrineReservaId = null },
+                aoSalvar = { itens ->
+                    produtosSalvando = true
+                    aoSalvarProdutos(idMapa, reservaId, itens) { falha ->
+                        produtosSalvando = false
+                        if (falha == null) {
+                            vitrineReservaId = null
+                            recarregarProdutos()
+                            recarregarSilencioso()
+                            Toast.makeText(contextoTela, "Produtos gravados na reserva.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(contextoTela, falha, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+            )
         }
 
         excluirOcorrenciaId?.let { idExcluir ->
@@ -1228,7 +1298,11 @@ private fun ChipAtraso(
 }
 
 @Composable
-private fun SecaoTour(mapa: MapaEmbarque) {
+private fun SecaoTour(
+    mapa: MapaEmbarque,
+    /** Produtos da reserva (quantidade × valor), somados por cima do saldo. */
+    produtosValor: (ReservaEmbarque) -> Double = { it.produtos },
+) {
     val reservas = mapa.reservas
     val paxPresentes = remember(reservas) {
         acumularPax(reservas.map { paxPresentesCategorias(it) })
@@ -1245,9 +1319,10 @@ private fun SecaoTour(mapa: MapaEmbarque) {
 
     val saida = reservas.mapNotNull { it.hora }.minOrNull()?.take(5) ?: "--:--"
     // Igual ao web (MapaEmbarque.tsx): a_receber já inclui taxas de cais;
-    // só se soma a taxa de cartão dos pagamentos lançados (taxaCartaoLancada).
+    // só se soma a taxa de cartão dos pagamentos lançados (taxaCartaoLancada)
+    // e os produtos, que ficam fora do saldo.
     val totalAReceber = reservas.sumOf { r ->
-        r.a_receber + r.pagamentos.sumOf { it.taxa }
+        r.a_receber + r.pagamentos.sumOf { it.taxa } + produtosValor(r)
     }
     val porForma = mutableMapOf<String, Double>()
     var totalRecebido = 0.0
@@ -1876,6 +1951,11 @@ private fun CartaoEmbarque(
     capacidadeVeiculo: Int? = null,
     /** Assentos já ocupados no mapa (INF não entra). */
     lugaresOcupados: Int = 0,
+    /** Soma das quantidades de produto da reserva. null = passeio sem produto. */
+    produtosQtd: Int? = null,
+    /** Soma quantidade × valor. Pode estar à frente de reserva.produtos até o mapa recarregar. */
+    produtosValor: Double = reserva.produtos,
+    aoAbrirProdutos: () -> Unit = {},
     aoSalvarQuantidade: (PedidoQuantidadeReserva, (String?) -> Unit) -> Unit = { _, t -> t(null) },
     dragHandleModifier: Modifier = Modifier,
 ) {
@@ -1920,7 +2000,11 @@ private fun CartaoEmbarque(
     val contexto = LocalContext.current
     val uriHandler = LocalUriHandler.current
 
-    val situacao = situacaoFinanceira(reserva.a_receber, reserva.pagamentos.sumOf { it.valor })
+    // Os produtos não estão no saldo (a_receber) — entram por cima, como no web.
+    val situacao = situacaoFinanceira(
+        reserva.a_receber + produtosValor,
+        reserva.pagamentos.sumOf { it.valor },
+    )
     val (fundo, borda) = when (situacao) {
         SituacaoFinanceira.RECEBIDO -> Color(0xFFDCFCE7) to Color(0xFF86EFAC)
         SituacaoFinanceira.PARCIAL -> Color(0xFFFEF3C7) to Color(0xFFFCD34D)
@@ -1956,11 +2040,14 @@ private fun CartaoEmbarque(
     val qtdChd = if (ehParcial) embarcados.chd else reserva.chd
     val qtdInf = if (ehParcial) embarcados.inf else reserva.inf
     val bandeira = bandeiraIdioma(reserva.idioma)
-    val totalCobrar = reserva.a_receber + reserva.pagamentos.sumOf { it.taxa }
+    // a_receber é o saldo da venda, sem produtos; o total deles entra por cima.
+    val totalBase = reserva.a_receber + reserva.pagamentos.sumOf { it.taxa }
     val taxasCadastro = reserva.taxas
-    val taxasNoSaldo = minOf(taxasCadastro, totalCobrar)
-    val passeioNoSaldo = maxOf(0.0, totalCobrar - taxasNoSaldo)
-    val mostrarBreakdown = taxasNoSaldo > 0.005
+    val taxasNoSaldo = minOf(taxasCadastro, totalBase)
+    val passeioNoSaldo = maxOf(0.0, totalBase - taxasNoSaldo)
+    val produtosNoSaldo = produtosValor
+    val totalCobrar = totalBase + produtosNoSaldo
+    val mostrarBreakdown = taxasNoSaldo > 0.005 || produtosNoSaldo > 0.005
 
     val resolvido = statusLocal == STATUS_CHECK_IN
         || statusLocal == STATUS_NO_SHOW
@@ -2217,7 +2304,8 @@ private fun CartaoEmbarque(
         ) {
             CampoCaixaEmbarque(
                 modifier = Modifier
-                    .weight(1.2f)
+                    // Com o chip de produto a grade do web vira 1fr|1fr|auto|auto.
+                    .weight(if (produtosQtd == null) 1.2f else 1f)
                     .widthIn(min = 0.dp),
                 rotulo = "Apto",
             ) {
@@ -2276,6 +2364,25 @@ private fun CartaoEmbarque(
                             )
                         }
                     }
+                }
+            }
+            if (produtosQtd != null) {
+                CampoCaixaEmbarque(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { aoAbrirProdutos() },
+                    rotulo = null,
+                    centralizado = true,
+                    paddingHorizontal = 8.dp,
+                ) {
+                    Text(
+                        "Produto: $produtosQtd",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
             CampoCaixaEmbarque(
@@ -2411,36 +2518,58 @@ private fun CartaoEmbarque(
                         .clickable(enabled = !bloqueado && !Sessao.ehAdmin) { aoEditar() }
                         .padding(vertical = 2.dp),
                 ) {
-                    Row {
-                        Text(
-                            stringResource(R.string.mapa_embarque_a_receber_rotulo),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            dinheiro(if (mostrarBreakdown) passeioNoSaldo else totalCobrar),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            textDecoration = TextDecoration.Underline,
-                        )
-                        if (statusLocal == STATUS_NO_SHOW && totalCobrar > 0.005) {
-                            Text(
-                                " (taxa de no-show)",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                    }
-                    if (mostrarBreakdown) {
-                        Text(
-                            "+ TAXAS: ${dinheiro(taxasNoSaldo)} = TOTAL: ${dinheiro(totalCobrar)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
+                    // Uma linha corrida, igual ao web:
+                    // A RECEBER: x + TAXAS: y + PRODUTOS: z = TOTAL: t
+                    val corRotulo = MaterialTheme.colorScheme.primary
+                    val estiloRotulo = SpanStyle(
+                        color = corRotulo,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                    )
+                    val estiloValor = SpanStyle(color = corRotulo)
+                    val rotuloAReceber = stringResource(R.string.mapa_embarque_a_receber_rotulo)
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(estiloRotulo) { append(rotuloAReceber) }
+                            append(' ')
+                            withStyle(
+                                SpanStyle(
+                                    color = corRotulo,
+                                    fontWeight = FontWeight.Bold,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            ) { append(dinheiro(if (mostrarBreakdown) passeioNoSaldo else totalCobrar)) }
+                            if (mostrarBreakdown) {
+                                if (taxasNoSaldo > 0.005) {
+                                    append(" + ")
+                                    withStyle(estiloRotulo) { append("TAXAS:") }
+                                    append(' ')
+                                    withStyle(estiloValor) { append(dinheiro(taxasNoSaldo)) }
+                                }
+                                if (produtosNoSaldo > 0.005) {
+                                    append(" + ")
+                                    withStyle(estiloRotulo) { append("PRODUTOS:") }
+                                    append(' ')
+                                    withStyle(estiloValor) { append(dinheiro(produtosNoSaldo)) }
+                                }
+                                append(" = ")
+                                withStyle(estiloRotulo) { append("TOTAL:") }
+                                append(' ')
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append(dinheiro(totalCobrar))
+                                }
+                            }
+                            if (statusLocal == STATUS_NO_SHOW && totalCobrar > 0.005) {
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = MaterialTheme.typography.labelSmall.fontSize,
+                                    ),
+                                ) { append(" (taxa de no-show)") }
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     if ((reserva.cortesia ?: 0.0) > 0.005) {
                         Text(
                             "Cortesia",

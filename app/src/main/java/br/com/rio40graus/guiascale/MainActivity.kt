@@ -119,6 +119,9 @@ import br.com.rio40graus.guiascale.rede.TaxasAutonomiaBody
 import br.com.rio40graus.guiascale.rede.IdiomaOpcao
 import br.com.rio40graus.guiascale.rede.ItemPagamento
 import br.com.rio40graus.guiascale.rede.ItemPagamentoFornecedor
+import br.com.rio40graus.guiascale.rede.ItemProdutoReserva
+import br.com.rio40graus.guiascale.rede.PedidoProdutosReserva
+import br.com.rio40graus.guiascale.rede.ReservaVitrine
 import br.com.rio40graus.guiascale.rede.KpisDoPainel
 import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
@@ -280,6 +283,8 @@ class MainActivity : ComponentActivity() {
                         aoSalvarPagamentoFornecedor = ::salvarPagamentoFornecedor,
                         aoSalvarQuantidadesFornecedor = ::salvarQuantidadesFornecedor,
                         aoSalvarQuantidadeReserva = ::salvarQuantidadeReserva,
+                        aoCarregarProdutos = ::carregarProdutos,
+                        aoSalvarProdutos = ::salvarProdutos,
                         aoCarregarNomeGuia = ::carregarNomeGuia,
                         aoPedirPermissoes = ::pedirPermissoes,
                         aoLigar = { mapaId -> iniciarRastreio(mapaId) },
@@ -581,6 +586,39 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val resposta = Rede.api.salvarQuantidadeReserva(reservaId, quantidades)
+                if (!resposta.isSuccessful) {
+                    aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                } else {
+                    aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarProdutos(
+        mapaId: Int,
+        aoTerminar: (List<ReservaVitrine>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.produtosMapa(mapaId).reservas.orEmpty(), null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun salvarProdutos(
+        mapaId: Int,
+        reservaId: Int,
+        itens: List<ItemProdutoReserva>,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.salvarProdutosReserva(mapaId, reservaId, PedidoProdutosReserva(itens))
                 if (!resposta.isSuccessful) {
                     aoTerminar(mensagemDeErro(this@MainActivity, resposta))
                 } else {
@@ -1126,6 +1164,8 @@ private fun Tela(
     aoSalvarPagamentoFornecedor: (Int, List<ItemPagamentoFornecedor>, (String?) -> Unit) -> Unit,
     aoSalvarQuantidadesFornecedor: (Int, PedidoQuantidadesFornecedor, (String?) -> Unit) -> Unit,
     aoSalvarQuantidadeReserva: (Int, PedidoQuantidadeReserva, (String?) -> Unit) -> Unit,
+    aoCarregarProdutos: (Int, (List<ReservaVitrine>?, String?) -> Unit) -> Unit,
+    aoSalvarProdutos: (Int, Int, List<ItemProdutoReserva>, (String?) -> Unit) -> Unit,
     aoCarregarNomeGuia: ((String?) -> Unit) -> Unit,
     aoPedirPermissoes: () -> Unit,
     aoLigar: (mapaId: Int?) -> Unit,
@@ -1299,6 +1339,8 @@ private fun Tela(
                             aoSalvarQuantidadesFornecedor = aoSalvarQuantidadesFornecedor,
                             aoSalvarQuantidadeReserva = aoSalvarQuantidadeReserva,
                             aoCarregarNomeGuia = aoCarregarNomeGuia,
+                            aoCarregarProdutos = aoCarregarProdutos,
+                            aoSalvarProdutos = aoSalvarProdutos,
                         )
 
                         Aba.CHECK_LIST -> TelaCheckList(
