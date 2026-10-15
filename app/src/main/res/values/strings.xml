@@ -246,6 +246,8 @@
 
     <string name="canal_rastreio">Rastreio do passeio</string>
     <string name="canal_rastreio_descricao">Aviso permanente enquanto o app grava por onde você passa.</string>
+    <string name="canal_avisos">Avisos da operação</string>
+    <string name="canal_avisos_descricao">Mudanças no mapa de embarque, na escala e respostas às suas solicitações.</string>
 
     <string name="painel_titulo">Painel do guia</string>
     <string name="painel_subtitulo">Acompanhe seu desempenho, agenda e avaliações.</string>

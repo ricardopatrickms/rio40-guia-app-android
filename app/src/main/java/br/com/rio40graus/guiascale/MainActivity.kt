@@ -108,6 +108,8 @@ import androidx.lifecycle.lifecycleScope
 import br.com.rio40graus.guiascale.dados.BancoLocal
 import br.com.rio40graus.guiascale.dados.Posicao
 import br.com.rio40graus.guiascale.rastreio.EstadoRastreio
+import br.com.rio40graus.guiascale.push.Avisos
+import br.com.rio40graus.guiascale.push.Dispositivo
 import br.com.rio40graus.guiascale.rastreio.RastreioService
 import br.com.rio40graus.guiascale.radar.TelaRadar
 import br.com.rio40graus.guiascale.rede.AgendaDoGuia
@@ -230,6 +232,23 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { /* o estado é relido pela tela */ }
 
+    // Recusou? Os avisos só não aparecem; o resto do app segue igual.
+    private val pedirNotificacoes = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    /**
+     * Android 13+ pede permissão para notificar. Pedida com o guia já logado
+     * (antes disso o aviso não teria para quem ir), no login e a cada abertura
+     * enquanto faltar. Não vira insistência: depois de duas recusas o próprio
+     * sistema para de mostrar o diálogo.
+     */
+    private fun pedirPermissaoDeNotificacao() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (Avisos.podeNotificar(this)) return
+        pedirNotificacoes.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         /*
@@ -242,6 +261,11 @@ class MainActivity : ComponentActivity() {
         Sessao.carregar(this)
         if (Sessao.autenticado && Sessao.nome.isNullOrBlank()) {
             atualizarPerfil()
+        }
+        if (Sessao.autenticado && !Sessao.ehAdmin) {
+            pedirPermissaoDeNotificacao()
+            // A cada abertura: conserta um registro que falhou sem sinal.
+            lifecycleScope.launch { Dispositivo.registrar(this@MainActivity) }
         }
 
         setContent {
@@ -325,6 +349,8 @@ class MainActivity : ComponentActivity() {
                         tipo = "guia",
                     )
                     aoTerminar(null)
+                    pedirPermissaoDeNotificacao()
+                    Dispositivo.registrar(this@MainActivity)
                 }
             } catch (erro: Exception) {
                 aoTerminar(mensagemDeErroLogin(this@MainActivity, erro))
@@ -388,6 +414,8 @@ class MainActivity : ComponentActivity() {
     private fun sair(aoTerminar: () -> Unit) {
         lifecycleScope.launch {
             RastreioService.parar(this@MainActivity)
+            // Antes do logout: a rota precisa da sessão ainda viva.
+            Dispositivo.remover(this@MainActivity)
             runCatching { Rede.api.logout() }
             Sessao.limpar(this@MainActivity)
             aoTerminar()

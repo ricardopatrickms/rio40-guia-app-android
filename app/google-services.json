@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "924926340939",
+    "project_id": "rio40graus-titanx",
+    "storage_bucket": "rio40graus-titanx.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:924926340939:android:7664b00c82d50b3ba782ce",
+        "android_client_info": {
+          "package_name": "br.com.rio40graus.guiascale"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB960hB_7mA7HjRSYGBpOh2RsDhvbj73FI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

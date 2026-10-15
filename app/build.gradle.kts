@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -188,6 +189,10 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // Push: só o Messaging (FCM). A BoM fixa a versão, como a do Compose.
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-messaging")
+
     /*
      * Mapa: Google Maps.
      *
@@ -204,4 +209,14 @@ dependencies {
 
     // Arrastar para reordenar (seções e reservas do mapa), como o @dnd-kit do web.
     implementation("sh.calvin.reorderable:reorderable:2.4.3")
+}
+
+/*
+ * O homolog (pacote .homolog) não está registrado no Firebase — o
+ * google-services.json só tem o br.com.rio40graus.guiascale, e o plugin
+ * derrubaria o assembleHomolog. Desligado aqui, o APK de homologação compila e
+ * só fica sem push.
+ */
+tasks.configureEach {
+    if (name == "processHomologGoogleServices") enabled = false
 }

@@ -14,6 +14,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -415,6 +416,13 @@ data class PedidoQuantidadeReserva(
 
 data class PedidoIdioma(val idioma_id: Int)
 
+/** Celular que recebe push: o token do Firebase deste aparelho. */
+data class PedidoDispositivo(
+    val token: String,
+    val plataforma: String = "android",
+    val versao: String? = null,
+)
+
 data class PedidoPagamentos(val pagamentos: List<ItemPagamento>)
 
 data class ItemPagamento(
@@ -499,6 +507,17 @@ interface ApiGuias {
      */
     @POST("guia/logout")
     suspend fun logout(): Response<Unit>
+
+    /*
+     * Push (FCM): liga/desliga este celular ao guia logado. Response pelo
+     * mesmo motivo do logout — falhar aqui não pode travar login nem saída.
+     * O DELETE leva corpo, e o @DELETE do Retrofit não aceita: daí o @HTTP.
+     */
+    @POST("guia/dispositivo")
+    suspend fun registrarDispositivo(@Body pedido: PedidoDispositivo): Response<Unit>
+
+    @HTTP(method = "DELETE", path = "guia/dispositivo", hasBody = true)
+    suspend fun removerDispositivo(@Body pedido: PedidoDispositivo): Response<Unit>
 
     /** Mapas do dia, com as reservas e as coordenadas de cada ponto. */
     @GET("guia/mapa-embarque")
