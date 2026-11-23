@@ -81,6 +81,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import android.content.Intent
 import android.net.Uri
 import br.com.rio40graus.guiascale.rede.FormaPagamento
@@ -96,6 +98,9 @@ import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.TaxaGuiaMapa
 import br.com.rio40graus.guiascale.rede.TaxaGuiaOpcao
 import br.com.rio40graus.guiascale.rede.OcorrenciaMapa
+import br.com.rio40graus.guiascale.rede.AtividadeDespesa
+import br.com.rio40graus.guiascale.rede.DespesaSemPreco
+import br.com.rio40graus.guiascale.rede.PedidoDespesaExtra
 import br.com.rio40graus.guiascale.rede.PagamentoFornecedor
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.ParcialEmbarque
@@ -147,6 +152,17 @@ fun TelaMapaEmbarque(
     aoCriarOcorrencia: (mapaId: Int, relato: String, aoTerminar: (String?) -> Unit) -> Unit,
     aoEditarOcorrencia: (id: Int, relato: String, aoTerminar: (String?) -> Unit) -> Unit,
     aoExcluirOcorrencia: (id: Int, aoTerminar: (String?) -> Unit) -> Unit,
+    aoCarregarAtividadesDespesa: ((List<AtividadeDespesa>?, String?) -> Unit) -> Unit = { it(emptyList(), null) },
+    aoCarregarDespesasSemPreco: (
+        atividadeId: Int,
+        aoTerminar: (List<DespesaSemPreco>?, String?) -> Unit,
+    ) -> Unit = { _, aoTerminar -> aoTerminar(emptyList(), null) },
+    aoAdicionarDespesaExtra: (
+        mapaId: Int,
+        despesa: PedidoDespesaExtra,
+        aoTerminar: (String?) -> Unit,
+    ) -> Unit = { _, _, aoTerminar -> aoTerminar(null) },
+    aoExcluirDespesaExtra: (id: Int, aoTerminar: (String?) -> Unit) -> Unit = { _, aoTerminar -> aoTerminar(null) },
     aoSalvarPagamentoFornecedor: (
         acertoFornecedorId: Int,
         itens: List<ItemPagamentoFornecedor>,
@@ -195,6 +211,8 @@ fun TelaMapaEmbarque(
     var erroOcorrencia by remember { mutableStateOf<String?>(null) }
     var editandoFornecedor by remember { mutableStateOf<FornecedorUi?>(null) }
     var marcandoMeia by remember { mutableStateOf<FornecedorUi?>(null) }
+    // "Faltou alguma despesa?": a despesa entra no acerto e volta em fornecedores.
+    var adicionandoDespesa by remember { mutableStateOf(false) }
     // Taxas de acesso do dia (decisão do guia, por mapa).
     var taxasDialogAberto by remember { mutableStateOf(false) }
     var taxasSalvando by remember { mutableStateOf(false) }
@@ -539,6 +557,125 @@ fun TelaMapaEmbarque(
                         val ctxSecoes = LocalContext.current
                         var ordemSecoes by remember { mutableStateOf(carregarOrdemSecoes(ctxSecoes)) }
 
+                        val ctx = LocalContext.current
+                        // Ordem do servidor (ordem_mapa_embarque); arrastável só
+                        // quando não está bloqueado nem em modo admin (leitura).
+                        val podeReordenar = !mapa.bloqueado && !Sessao.ehAdmin
+                        var ordenadas by remember(mapa.id, mapa.reservas) {
+                            mutableStateOf(mapa.reservas)
+                        }
+                        val capacidadeVeiculo = mapa.veiculo?.capacidade?.takeIf { it > 0 }
+                        // Infantil não ocupa lugar no transporte — mesma conta da SecaoTour.
+                        val lugaresOcupados = remember(mapa.reservas) {
+                            val presentes = acumularPax(mapa.reservas.map { paxPresentesCategorias(it) })
+                            presentes.total - presentes.inf
+                        }
+
+                        /*
+                         * Embarques em sequência (igual ao web): o guia só abre a
+                         * reserva seguinte depois de marcar o status da anterior.
+                         * A da vez é a primeira ainda em aberto; as de trás ficam
+                         * só com nome e endereço. Admin e acerto confirmado veem tudo.
+                         */
+                        val sequencial = !mapa.bloqueado && !Sessao.ehAdmin
+                        val indiceDaVez = if (sequencial) {
+                            ordenadas.indexOfFirst { !statusEmbarqueResolvido(it.status?.id) }
+                        } else {
+                            -1
+                        }
+                        // A última reserva ainda em aberto abre em popup, sem saída.
+                        val reservaObrigatoria =
+                            if (sequencial && indiceDaVez >= 0 && indiceDaVez == ordenadas.lastIndex) {
+                                ordenadas[indiceDaVez]
+                            } else {
+                                null
+                            }
+
+                        // O card de cada reserva, reusado nos dois modos.
+                        val cartao: @Composable (ReservaEmbarque, Modifier, Boolean, Boolean) -> Unit =
+                            { reserva, handle, travado, popup ->
+                                if (travado) {
+                                    CartaoEmbarqueTravado(reserva)
+                                } else
+                                CartaoEmbarque(
+                                    modoPopup = popup,
+                                    abertoInicial = popup,
+                                    reserva = reserva,
+                                    dataMapa = dataSelecionada,
+                                    bloqueado = mapa.bloqueado,
+                                    enviando = enviando == reserva.id,
+                                    aoEditar = { editando = mapa to reserva },
+                                    aoTrocarStatus = { statusId, motivoId, parcial, aoTerminar ->
+                                        enviando = reserva.id
+                                        aoTrocarStatus(
+                                            reserva.id,
+                                            mapa.id,
+                                            statusId,
+                                            motivoId,
+                                            parcial,
+                                        ) { falha ->
+                                            enviando = null
+                                            aoTerminar(falha)
+                                            if (falha == null) {
+                                                atualizarStatusLocal(reserva.id, statusId, parcial)
+                                                recarregarSilencioso()
+                                            }
+                                        }
+                                    },
+                                    aoCarregarMotivos = aoCarregarMotivos,
+                                    capacidadeVeiculo = capacidadeVeiculo,
+                                    lugaresOcupados = lugaresOcupados,
+                                    produtosQtd = vitrineDoMapa[reserva.id]?.quantidadeTotal,
+                                    produtosValor = produtosValorDe(reserva),
+                                    aoAbrirProdutos = { vitrineReservaId = reserva.id },
+                                    aoSalvarQuantidade = { quantidades, aoTerminar ->
+                                        enviando = reserva.id
+                                        aoSalvarQuantidadeReserva(reserva.id, quantidades) { falha ->
+                                            enviando = null
+                                            aoTerminar(falha)
+                                            if (falha == null) recarregarSilencioso()
+                                        }
+                                    },
+                                    dragHandleModifier = handle,
+                                )
+                            }
+
+                        // Popup obrigatório da última reserva: sem voltar, sem tocar
+                        // fora. Fecha sozinho quando o status é gravado (a reserva
+                        // deixa de estar em aberto e reservaObrigatoria vira null).
+                        if (reservaObrigatoria != null) {
+                            Dialog(
+                                onDismissRequest = {},
+                                properties = DialogProperties(
+                                    dismissOnBackPress = false,
+                                    dismissOnClickOutside = false,
+                                ),
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(12.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        "Último embarque",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    Text(
+                                        "Marque o status desta reserva para continuar.",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    key(reservaObrigatoria.id) {
+                                        cartao(reservaObrigatoria, Modifier, false, true)
+                                    }
+                                }
+                            }
+                        }
+
                         val secaoDoMapa: @Composable (String, Modifier) -> Unit = { secaoId, handle ->
                             when (secaoId) {
                                 SecaoMapaIds.TOUR -> SecaoExpansivel(
@@ -565,6 +702,13 @@ fun TelaMapaEmbarque(
                                 mapa = mapa,
                                 aoInformarPagamento = { editandoFornecedor = it },
                                 aoMarcarMeia = { marcandoMeia = it },
+                                podeAdicionarDespesa = !mapa.bloqueado && !Sessao.ehAdmin,
+                                aoAdicionarDespesa = { adicionandoDespesa = true },
+                                aoExcluirDespesa = { acertoFornecedorId ->
+                                    aoExcluirDespesaExtra(acertoFornecedorId) { falha ->
+                                        if (falha == null) recarregarSilencioso()
+                                    }
+                                },
                             )
                         }
 
@@ -594,63 +738,6 @@ fun TelaMapaEmbarque(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             } else {
-                                val ctx = LocalContext.current
-                                // Ordem do servidor (ordem_mapa_embarque); arrastável só
-                                // quando não está bloqueado nem em modo admin (leitura).
-                                val podeReordenar = !mapa.bloqueado && !Sessao.ehAdmin
-                                var ordenadas by remember(mapa.id, mapa.reservas) {
-                                    mutableStateOf(mapa.reservas)
-                                }
-                                val capacidadeVeiculo = mapa.veiculo?.capacidade?.takeIf { it > 0 }
-                                // Infantil não ocupa lugar no transporte — mesma conta da SecaoTour.
-                                val lugaresOcupados = remember(mapa.reservas) {
-                                    val presentes = acumularPax(mapa.reservas.map { paxPresentesCategorias(it) })
-                                    presentes.total - presentes.inf
-                                }
-
-                                // O card de cada reserva, reusado nos dois modos.
-                                val cartao: @Composable (ReservaEmbarque, Modifier) -> Unit =
-                                    { reserva, handle ->
-                                        CartaoEmbarque(
-                                            reserva = reserva,
-                                            dataMapa = dataSelecionada,
-                                            bloqueado = mapa.bloqueado,
-                                            enviando = enviando == reserva.id,
-                                            aoEditar = { editando = mapa to reserva },
-                                            aoTrocarStatus = { statusId, motivoId, parcial, aoTerminar ->
-                                                enviando = reserva.id
-                                                aoTrocarStatus(
-                                                    reserva.id,
-                                                    mapa.id,
-                                                    statusId,
-                                                    motivoId,
-                                                    parcial,
-                                                ) { falha ->
-                                                    enviando = null
-                                                    aoTerminar(falha)
-                                                    if (falha == null) {
-                                                        atualizarStatusLocal(reserva.id, statusId, parcial)
-                                                        recarregarSilencioso()
-                                                    }
-                                                }
-                                            },
-                                            aoCarregarMotivos = aoCarregarMotivos,
-                                            capacidadeVeiculo = capacidadeVeiculo,
-                                            lugaresOcupados = lugaresOcupados,
-                                            produtosQtd = vitrineDoMapa[reserva.id]?.quantidadeTotal,
-                                            produtosValor = produtosValorDe(reserva),
-                                            aoAbrirProdutos = { vitrineReservaId = reserva.id },
-                                            aoSalvarQuantidade = { quantidades, aoTerminar ->
-                                                enviando = reserva.id
-                                                aoSalvarQuantidadeReserva(reserva.id, quantidades) { falha ->
-                                                    enviando = null
-                                                    aoTerminar(falha)
-                                                    if (falha == null) recarregarSilencioso()
-                                                }
-                                            },
-                                            dragHandleModifier = handle,
-                                        )
-                                    }
 
                                 if (podeReordenar) {
                                     ReorderableColumn(
@@ -670,18 +757,31 @@ fun TelaMapaEmbarque(
                                         },
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) { _, reserva, _ ->
+                                    ) { indice, reserva, _ ->
                                         key(reserva.id) {
-                                            cartao(reserva, Modifier.draggableHandle())
+                                            cartao(
+                                                reserva,
+                                                Modifier.draggableHandle(),
+                                                sequencial && indiceDaVez >= 0 && indice > indiceDaVez,
+                                                false,
+                                            )
                                         }
                                     }
                                 } else {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        ordenadas.forEach { reserva ->
-                                            key(reserva.id) { cartao(reserva, Modifier) }
+                                        ordenadas.forEachIndexed { indice, reserva ->
+                                            key(reserva.id) {
+                                                cartao(
+                                                    reserva,
+                                                    Modifier,
+                                                    sequencial && indiceDaVez >= 0 && indice > indiceDaVez,
+                                                    false,
+                                                )
+                                            }
                                         }
                                     }
                                 }
+
                             }
                         }
 
@@ -938,6 +1038,22 @@ fun TelaMapaEmbarque(
                 aoFechar = { marcandoMeia = null },
                 aoRecarregar = { recarregarSilencioso() },
             )
+        }
+
+        if (adicionandoDespesa) {
+            mapaAtual?.id?.let { mapaId ->
+                DialogDespesaExtra(
+                    aoCarregarAtividades = aoCarregarAtividadesDespesa,
+                    aoCarregarDespesas = aoCarregarDespesasSemPreco,
+                    aoAdicionar = { despesa, aoTerminar ->
+                        aoAdicionarDespesaExtra(mapaId, despesa) { falha ->
+                            if (falha == null) recarregarSilencioso()
+                            aoTerminar(falha)
+                        }
+                    },
+                    aoFechar = { adicionandoDespesa = false },
+                )
+            }
         }
     }
 }
@@ -1476,6 +1592,10 @@ private fun SecaoFornecedores(
     mapa: MapaEmbarque,
     aoInformarPagamento: (FornecedorUi) -> Unit,
     aoMarcarMeia: (FornecedorUi) -> Unit = {},
+    podeAdicionarDespesa: Boolean = false,
+    aoAdicionarDespesa: () -> Unit = {},
+    /** Recebe o acerto_fornecedor_id da despesa que o guia lançou. */
+    aoExcluirDespesa: (Int) -> Unit = {},
 ) {
     // Mesma montagem do web (`paraFornecedores`): transporte do mapa + demais.
     val fornecedoresUi = remember(mapa) { fornecedoresDoMapa(mapa) }
@@ -1494,6 +1614,27 @@ private fun SecaoFornecedores(
                     bloqueado = mapa.bloqueado,
                     aoInformarPagamento = { aoInformarPagamento(f) },
                     aoMarcarMeia = { aoMarcarMeia(f) },
+                    aoExcluir = f.acertoFornecedorId
+                        ?.takeIf { f.podeExcluir && podeAdicionarDespesa }
+                        ?.let { id -> { aoExcluirDespesa(id) } },
+                )
+            }
+        }
+
+        // "Faltou alguma despesa?" — mesmo bloco do web (`AdicionarDespesa`).
+        if (podeAdicionarDespesa) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.despesa_extra_faltou),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.despesa_extra_adicionar),
+                    modifier = Modifier.clickable(onClick = aoAdicionarDespesa),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
                 )
             }
         }
@@ -1548,6 +1689,7 @@ private fun fornecedoresDoMapa(mapa: MapaEmbarque): List<FornecedorUi> {
             observacao = f.descricao,
             acertoFornecedorId = f.acerto_fornecedor_id,
             permitePagamento = f.permite_pagamento,
+            podeExcluir = f.pode_excluir,
             pagamentos = f.pagamentos,
             adt = f.adt,
             chd = f.chd,
@@ -1607,6 +1749,8 @@ private data class FornecedorUi(
     val acertoFornecedorId: Int?,
     val permitePagamento: Boolean,
     val pagamentos: List<PagamentoFornecedor>,
+    /** Despesa que este guia lançou ("Faltou alguma despesa?"), sem pagamento. */
+    val podeExcluir: Boolean = false,
     // Breakdown por categoria e o "reservado (gerado)" — só na cobrança por
     // pessoa. Nulo no transporte e nas despesas por serviço.
     val adt: Int? = null,
@@ -1623,6 +1767,8 @@ private fun BlocoFornecedor(
     bloqueado: Boolean,
     aoInformarPagamento: () -> Unit,
     aoMarcarMeia: () -> Unit = {},
+    /** Só na despesa que o guia lançou; null esconde a lixeira. */
+    aoExcluir: (() -> Unit)? = null,
 ) {
     // Admin é somente leitura: não lança pagamento a fornecedor.
     val podeLancar = f.acertoFornecedorId != null && f.permitePagamento && !bloqueado && !Sessao.ehAdmin
@@ -1633,7 +1779,48 @@ private fun BlocoFornecedor(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        LinhaCampo(stringResource(R.string.mapa_embarque_empresa), f.empresa)
+        if (aoExcluir != null) {
+            var confirmar by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    LinhaCampo(stringResource(R.string.mapa_embarque_empresa), f.empresa)
+                }
+                IconButton(onClick = { confirmar = true }) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.despesa_extra_excluir),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            // Confirma antes de tirar do acerto; com pagamento, avisa que sai junto.
+            if (confirmar) {
+                AlertDialog(
+                    onDismissRequest = { confirmar = false },
+                    title = { Text(stringResource(R.string.despesa_extra_excluir_titulo)) },
+                    text = {
+                        Text(
+                            if (pago > 0.009) {
+                                stringResource(R.string.despesa_extra_excluir_com_pagamento, f.empresa, dinheiro(pago))
+                            } else {
+                                f.empresa
+                            },
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmar = false
+                            aoExcluir()
+                        }) { Text(stringResource(R.string.despesa_extra_excluir_botao)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmar = false }) { Text(stringResource(R.string.cancelar)) }
+                    },
+                )
+            }
+        } else {
+            LinhaCampo(stringResource(R.string.mapa_embarque_empresa), f.empresa)
+        }
         if (!f.ehTransporte) {
             f.atividade?.takeIf { it.isNotBlank() }?.let {
                 LinhaCampo(stringResource(R.string.mapa_embarque_atividade), it)
@@ -1932,6 +2119,62 @@ private data class OpcaoStatusEmbarque(
     val corAtiva: Color,
 )
 
+/**
+ * "O guia já resolveu esta reserva" — mesma noção do web (STATUS_RESOLVIDOS):
+ * check-in, no-show, parcial e cancelada. Repasse (5) também conta: não é
+ * decisão do guia, e ele nunca conseguiria marcá-la — travaria a fila.
+ */
+private fun statusEmbarqueResolvido(id: Int?): Boolean =
+    id == STATUS_CHECK_IN || id == STATUS_NO_SHOW || id == STATUS_PARCIAL || id == 4 || id == 5
+
+/**
+ * Reserva ainda não liberada: só o ponto de embarque (nome e endereço). Nada de
+ * horário, pax, idioma, telefone, apartamento ou status.
+ */
+@Composable
+private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque) {
+    val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
+        ?: reserva.endereco?.takeIf { it.isNotBlank() }
+        ?: "—"
+    val endereco = reserva.endereco?.takeIf {
+        it.isNotBlank() && !reserva.embarque.isNullOrBlank() && it != reserva.embarque
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_map_pin),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp).size(20.dp),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(hotel, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp)
+            endereco?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_lock),
+            contentDescription = "Bloqueado",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp).size(18.dp),
+        )
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CartaoEmbarque(
@@ -1958,8 +2201,11 @@ private fun CartaoEmbarque(
     aoAbrirProdutos: () -> Unit = {},
     aoSalvarQuantidade: (PedidoQuantidadeReserva, (String?) -> Unit) -> Unit = { _, t -> t(null) },
     dragHandleModifier: Modifier = Modifier,
+    /** Dentro do popup obrigatório da última reserva: sem alça de arrastar. */
+    modoPopup: Boolean = false,
+    abertoInicial: Boolean = false,
 ) {
-    var aberto by remember(reserva.id) { mutableStateOf(false) }
+    var aberto by remember(reserva.id) { mutableStateOf(abertoInicial) }
     var dialogoMotivo by remember { mutableStateOf(false) }
     var dialogoParcial by remember { mutableStateOf(false) }
     // Modal do QTD: quantos EMBARCAM por categoria (mesma cara do PARCIAL).
@@ -2190,15 +2436,19 @@ private fun CartaoEmbarque(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top,
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_lucide_grip_vertical),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(start = 6.dp, top = 14.dp)
-                    .size(20.dp)
-                    .then(dragHandleModifier),
-            )
+            if (modoPopup) {
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(start = 6.dp, top = 14.dp)
+                        .size(20.dp)
+                        .then(dragHandleModifier),
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
         Column(
             modifier = Modifier

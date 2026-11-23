@@ -196,6 +196,8 @@ data class TransporteDespesa(
 data class FornecedorMapa(
     val origem: String? = null,
     val permite_pagamento: Boolean = false,
+    /** Despesa que este guia lançou ("Faltou alguma despesa?"), ainda sem pagamento. */
+    val pode_excluir: Boolean = false,
     val acerto_fornecedor_id: Int? = null,
     val fornecedor_id: Int? = null,
     val nome: String? = null,
@@ -359,6 +361,28 @@ data class RespostaOcorrencias(
 )
 
 data class PedidoOcorrencia(val relato: String)
+
+/*
+ * Despesa extra do passeio ("Faltou alguma despesa?"). O financeiro cadastra a
+ * despesa no fornecedor marcada como SEM PREÇO; o guia escolhe atividade +
+ * despesa e informa o valor. Entra no acerto do mapa e volta em `fornecedores`,
+ * com "Informar pagamento".
+ */
+data class AtividadeDespesa(val id: Int, val nome: String?)
+
+data class RespostaAtividadesDespesa(val atividades: List<AtividadeDespesa> = emptyList())
+
+/** `nome` já vem pronto da API: "Fornecedor - Despesa". */
+data class DespesaSemPreco(
+    val id: Int,
+    val fornecedor: String? = null,
+    val despesa: String? = null,
+    val nome: String? = null,
+)
+
+data class RespostaDespesasSemPreco(val despesas: List<DespesaSemPreco> = emptyList())
+
+data class PedidoDespesaExtra(val parceiro_tarifario_id: Int, val valor: Double)
 
 data class FormaPagamento(
     val id: Int,
@@ -588,6 +612,22 @@ interface ApiGuias {
         @Path("acertoFornecedorId") acertoFornecedorId: Int,
         @Body corpo: PedidoQuantidadesFornecedor,
     ): Response<Unit>
+
+    @GET("guia/despesas-extras/atividades")
+    suspend fun atividadesDespesa(): RespostaAtividadesDespesa
+
+    @GET("guia/despesas-extras/despesas")
+    suspend fun despesasSemPreco(@Query("atividade_id") atividadeId: Int): RespostaDespesasSemPreco
+
+    @POST("guia/mapa/{mapaId}/despesas-extras")
+    suspend fun adicionarDespesaExtra(
+        @Path("mapaId") mapaId: Int,
+        @Body corpo: PedidoDespesaExtra,
+    ): Response<Unit>
+
+    /** `id` = acerto_fornecedor_id da despesa que o próprio guia lançou. */
+    @DELETE("guia/despesa-extra/{id}")
+    suspend fun excluirDespesaExtra(@Path("id") id: Int): Response<Unit>
 
     @GET("guia/mapa/{mapaId}/ocorrencias")
     suspend fun listarOcorrencias(@Path("mapaId") mapaId: Int): RespostaOcorrencias

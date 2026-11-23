@@ -149,6 +149,9 @@ import androidx.compose.runtime.key
 import br.com.rio40graus.guiascale.rede.CandidatoItem
 import br.com.rio40graus.guiascale.rede.GuiaSelectItem
 import br.com.rio40graus.guiascale.rede.Rede
+import br.com.rio40graus.guiascale.rede.AtividadeDespesa
+import br.com.rio40graus.guiascale.rede.DespesaSemPreco
+import br.com.rio40graus.guiascale.rede.PedidoDespesaExtra
 import androidx.activity.compose.rememberLauncherForActivityResult
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -289,6 +292,10 @@ class MainActivity : ComponentActivity() {
                         aoCriarOcorrencia = ::criarOcorrencia,
                         aoEditarOcorrencia = ::editarOcorrencia,
                         aoExcluirOcorrencia = ::excluirOcorrencia,
+                        aoCarregarAtividadesDespesa = ::carregarAtividadesDespesa,
+                        aoCarregarDespesasSemPreco = ::carregarDespesasSemPreco,
+                        aoAdicionarDespesaExtra = ::adicionarDespesaExtra,
+                        aoExcluirDespesaExtra = ::excluirDespesaExtra,
                         aoCarregarChecklist = ::carregarChecklist,
                         aoMarcarChecklist = ::marcarChecklist,
                         aoCarregarPainel = ::carregarPainel,
@@ -792,6 +799,63 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /*
+     * Despesa extra do passeio ("Faltou alguma despesa?"). Rotas só do guia:
+     * o admin inspecionando o mapa não vê o botão. A despesa entra no acerto e
+     * volta na lista de fornecedores do mapa.
+     */
+    private fun carregarAtividadesDespesa(aoTerminar: (List<AtividadeDespesa>?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.atividadesDespesa().atividades, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun carregarDespesasSemPreco(
+        atividadeId: Int,
+        aoTerminar: (List<DespesaSemPreco>?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                aoTerminar(Rede.api.despesasSemPreco(atividadeId).despesas, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun adicionarDespesaExtra(
+        mapaId: Int,
+        despesa: PedidoDespesaExtra,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.adicionarDespesaExtra(mapaId, despesa)
+                aoTerminar(if (resposta.isSuccessful) null else mensagemDeErro(this@MainActivity, resposta))
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    private fun excluirDespesaExtra(
+        id: Int,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = Rede.api.excluirDespesaExtra(id)
+                aoTerminar(if (resposta.isSuccessful) null else mensagemDeErro(this@MainActivity, resposta))
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun carregarChecklist(
         tourId: Int,
         data: String,
@@ -1174,6 +1238,10 @@ private fun Tela(
     aoCriarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
     aoEditarOcorrencia: (Int, String, (String?) -> Unit) -> Unit,
     aoExcluirOcorrencia: (Int, (String?) -> Unit) -> Unit,
+    aoCarregarAtividadesDespesa: ((List<AtividadeDespesa>?, String?) -> Unit) -> Unit,
+    aoCarregarDespesasSemPreco: (Int, (List<DespesaSemPreco>?, String?) -> Unit) -> Unit,
+    aoAdicionarDespesaExtra: (Int, PedidoDespesaExtra, (String?) -> Unit) -> Unit,
+    aoExcluirDespesaExtra: (Int, (String?) -> Unit) -> Unit,
     aoCarregarChecklist: (Int, String, Int?, (List<TarefaChecklist>?, String?) -> Unit) -> Unit,
     aoMarcarChecklist: (String, Int, String, Boolean, (String?) -> Unit) -> Unit,
     aoCarregarPainel: (String, (KpisDoPainel?, String?) -> Unit) -> Unit,
@@ -1363,6 +1431,10 @@ private fun Tela(
                             aoCriarOcorrencia = aoCriarOcorrencia,
                             aoEditarOcorrencia = aoEditarOcorrencia,
                             aoExcluirOcorrencia = aoExcluirOcorrencia,
+                            aoCarregarAtividadesDespesa = aoCarregarAtividadesDespesa,
+                            aoCarregarDespesasSemPreco = aoCarregarDespesasSemPreco,
+                            aoAdicionarDespesaExtra = aoAdicionarDespesaExtra,
+                            aoExcluirDespesaExtra = aoExcluirDespesaExtra,
                             aoSalvarPagamentoFornecedor = aoSalvarPagamentoFornecedor,
                             aoSalvarQuantidadesFornecedor = aoSalvarQuantidadesFornecedor,
                             aoSalvarQuantidadeReserva = aoSalvarQuantidadeReserva,
