@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonPin
 import androidx.compose.material.icons.filled.PinDrop
@@ -113,6 +114,7 @@ import br.com.rio40graus.guiascale.push.Dispositivo
 import br.com.rio40graus.guiascale.rastreio.RastreioService
 import br.com.rio40graus.guiascale.radar.TelaRadar
 import br.com.rio40graus.guiascale.rede.AgendaDoGuia
+import br.com.rio40graus.guiascale.rede.PaginaFaturas
 import br.com.rio40graus.guiascale.rede.BloqueioGuia
 import br.com.rio40graus.guiascale.rede.DiasSemanaGuia
 import br.com.rio40graus.guiascale.rede.FichaGuia
@@ -302,6 +304,9 @@ class MainActivity : ComponentActivity() {
                         aoCarregarPasseiosGuia = ::carregarPasseiosGuia,
                         aoCarregarAgenda = ::carregarAgenda,
                         aoCarregarFicha = ::carregarFicha,
+                        aoCarregarFaturas = ::carregarFaturas,
+                        aoEnviarComprovanteFatura = ::enviarComprovanteFatura,
+                        aoBaixarComprovanteFatura = ::baixarComprovanteFatura,
                         aoCarregarLei = ::carregarLei,
                         aoSalvarLei = ::salvarLei,
                         aoCarregarBloqueios = ::carregarBloqueios,
@@ -987,6 +992,131 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /* ---- Financeiro: faturas do guia ---- */
+
+    private fun carregarFaturas(pagina: Int, aoTerminar: (PaginaFaturas?, String?) -> Unit) {
+        lifecycleScope.launch {
+            try {
+                val dados = if (Sessao.ehAdmin) {
+                    val usuId = Sessao.guiaInspecionadoId
+                    val parId = Sessao.guiaInspecionadoParId
+                    if (usuId == null && parId == null) {
+                        return@launch aoTerminar(null, AVISO_SELECIONE_GUIA)
+                    }
+                    Rede.api.faturasAdmin(usuId, parId, pagina)
+                } else {
+                    Rede.api.faturas(pagina)
+                }
+                aoTerminar(dados, null)
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    /**
+     * O guia solicita o pagamento de uma linha da fatura. Só o próprio guia
+     * envia: o admin inspecionando não tem esse token (a tela já desabilita).
+     */
+    private fun enviarComprovanteFatura(
+        faturaId: String,
+        valor: Double,
+        formaId: Int,
+        arquivo: Uri,
+        aoTerminar: (String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val resposta = withContext(Dispatchers.IO) {
+                    val tipo = contentResolver.getType(arquivo) ?: "application/octet-stream"
+                    val ext = when {
+                        tipo.contains("pdf") -> "pdf"
+                        tipo.contains("png") -> "png"
+                        else -> "jpg"
+                    }
+                    val bytes = contentResolver.openInputStream(arquivo)?.use { it.readBytes() }
+                        ?: return@withContext null
+                    // Mesmo teto do servidor: 5 MB.
+                    if (bytes.isEmpty() || bytes.size > 5 * 1024 * 1024) return@withContext null
+
+                    val parte = MultipartBody.Part.createFormData(
+                        "arquivo",
+                        "comprovante.$ext",
+                        bytes.toRequestBody(tipo.toMediaTypeOrNull()),
+                    )
+                    val texto = "text/plain".toMediaTypeOrNull()
+                    Rede.api.enviarComprovanteFatura(
+                        faturaId,
+                        parte,
+                        String.format(Locale.US, "%.2f", valor).toRequestBody(texto),
+                        formaId.toString().toRequestBody(texto),
+                    )
+                }
+                when {
+                    resposta == null -> aoTerminar("Não foi possível ler o arquivo (máximo de 5 MB).")
+                    !resposta.isSuccessful -> aoTerminar(mensagemDeErro(this@MainActivity, resposta))
+                    else -> aoTerminar(null)
+                }
+            } catch (erro: Exception) {
+                aoTerminar(mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
+    /**
+     * Baixa o comprovante para o cache e devolve um Uri do FileProvider, que o
+     * visualizador do aparelho consegue abrir. `solicitacao`: o id é de uma
+     * solicitação do guia, e não de um pagamento já lançado.
+     */
+    private fun baixarComprovanteFatura(
+        id: Int,
+        solicitacao: Boolean,
+        nome: String,
+        aoTerminar: (Uri?, String?) -> Unit,
+    ) {
+        lifecycleScope.launch {
+            try {
+                val arquivo = withContext(Dispatchers.IO) {
+                    val sol = if (solicitacao) 1 else null
+                    val resposta = if (Sessao.ehAdmin) {
+                        Rede.api.baixarComprovanteFaturaAdmin(
+                            id,
+                            Sessao.guiaInspecionadoId,
+                            Sessao.guiaInspecionadoParId,
+                            sol,
+                        )
+                    } else {
+                        Rede.api.baixarComprovanteFatura(id, sol)
+                    }
+                    val corpo = resposta.body()
+                    if (!resposta.isSuccessful || corpo == null) return@withContext null
+
+                    val pasta = java.io.File(cacheDir, "comprovantes").apply { mkdirs() }
+                    // O nome vem da tela; troca o que o sistema de arquivos não aceita.
+                    val destino = java.io.File(pasta, nome.replace(Regex("[^A-Za-z0-9._-]"), "_"))
+                    corpo.byteStream().use { entrada ->
+                        destino.outputStream().use { saida -> entrada.copyTo(saida) }
+                    }
+                    destino
+                }
+                if (arquivo == null) {
+                    aoTerminar(null, "Comprovante não encontrado.")
+                } else {
+                    aoTerminar(
+                        androidx.core.content.FileProvider.getUriForFile(
+                            this@MainActivity,
+                            "$packageName.arquivos",
+                            arquivo,
+                        ),
+                        null,
+                    )
+                }
+            } catch (erro: Exception) {
+                aoTerminar(null, mensagemDeErro(this@MainActivity, erro))
+            }
+        }
+    }
+
     private fun carregarLei(aoTerminar: (ProgressoDaLei?, String?) -> Unit) {
         // Admin: o progresso da Lei é do guia; na inspeção usa o padrão (tudo fechado).
         if (Sessao.ehAdmin) {
@@ -1248,6 +1378,9 @@ private fun Tela(
     aoCarregarPasseiosGuia: (String, (PasseiosDoGuia?, String?) -> Unit) -> Unit,
     aoCarregarAgenda: (String, String, (AgendaDoGuia?, String?) -> Unit) -> Unit,
     aoCarregarFicha: ((FichaGuia?, String?) -> Unit) -> Unit,
+    aoCarregarFaturas: (Int, (PaginaFaturas?, String?) -> Unit) -> Unit,
+    aoEnviarComprovanteFatura: (String, Double, Int, Uri, (String?) -> Unit) -> Unit,
+    aoBaixarComprovanteFatura: (Int, Boolean, String, (Uri?, String?) -> Unit) -> Unit,
     aoCarregarLei: ((ProgressoDaLei?, String?) -> Unit) -> Unit,
     aoSalvarLei: (ProgressoDaLei, (Boolean) -> Unit) -> Unit,
     aoCarregarBloqueios: (String?, (List<BloqueioGuia>?, String?) -> Unit) -> Unit,
@@ -1477,6 +1610,14 @@ private fun Tela(
                         )
 
                         Aba.RADAR -> TelaRadar()
+
+                        Aba.FINANCEIRO -> TelaFinanceiro(
+                            // Admin inspecionando vê as faturas, mas só o guia registra pagamento.
+                            somenteLeitura = Sessao.ehAdmin,
+                            aoCarregar = aoCarregarFaturas,
+                            aoEnviarComprovante = aoEnviarComprovanteFatura,
+                            aoBaixarComprovante = aoBaixarComprovanteFatura,
+                        )
 
                         else -> { /* abas desabilitadas / Conta no menu do avatar */ }
                     }
@@ -1889,6 +2030,7 @@ private enum class Aba(
     CHECK_LIST(R.string.aba_check_list, Icons.Filled.Assignment, true),
     CHECK_IN(R.string.aba_check_in_nav, Icons.Filled.MyLocation, true),
     RADAR(R.string.aba_radar, Icons.Filled.WbSunny, true),
+    FINANCEIRO(R.string.aba_financeiro, Icons.Filled.Paid, true),
     CONTA(R.string.aba_conta, Icons.Filled.Person, true, noMenuInferior = false),
 }
 

@@ -40,6 +40,7 @@
     <string name="checklist_todos_fechados">Os embarques de hoje já foram fechados pelo financeiro. O check list deles está concluído.</string>
     <string name="aba_check_in_nav">Geocheck-in</string>
     <string name="aba_radar">Radar</string>
+    <string name="aba_financeiro">Financ.</string>
     <string name="aba_conta">Conta</string>
     <string name="aba_em_breve">Em breve</string>
     <string name="aba_rastreio">Rastreio</string>

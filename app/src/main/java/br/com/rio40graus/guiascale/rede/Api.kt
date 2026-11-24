@@ -5,6 +5,8 @@ import br.com.rio40graus.guiascale.BuildConfig
 import br.com.rio40graus.guiascale.R
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONObject
 import retrofit2.HttpException
@@ -21,6 +23,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 import java.util.concurrent.TimeUnit
 
 /**
@@ -516,6 +519,54 @@ interface ApiGuias {
     @Multipart
     @POST("guia/foto")
     suspend fun enviarFoto(@Part foto: MultipartBody.Part): Response<FotoResposta>
+
+    /* ---- Financeiro: faturas do guia ---- */
+
+    @GET("guia/faturas")
+    suspend fun faturas(
+        @Query("page") pagina: Int,
+        @Query("per_page") porPagina: Int = 10,
+    ): PaginaFaturas
+
+    /** Admin inspecionando um guia: só leitura. */
+    @GET("escala/faturas")
+    suspend fun faturasAdmin(
+        @Query("usu_id") usuId: Int? = null,
+        @Query("par_id") parId: Int? = null,
+        @Query("page") pagina: Int,
+        @Query("per_page") porPagina: Int = 10,
+    ): PaginaFaturas
+
+    /**
+     * O guia solicita o pagamento da fatura: valor + conta + comprovante.
+     * Não lança pagamento real — o financeiro confere e aprova ou nega.
+     * Um envio por linha de pagamento.
+     */
+    @Multipart
+    @POST("guia/faturas/{id}/comprovante")
+    suspend fun enviarComprovanteFatura(
+        @Path("id") faturaId: String,
+        @Part arquivo: MultipartBody.Part,
+        @Part("valor") valor: RequestBody,
+        @Part("forma_id") formaId: RequestBody,
+    ): Response<ResponseBody>
+
+    /** `solicitacao=true`: o id é de uma solicitação do guia, não de pagamento real. */
+    @Streaming
+    @GET("guia/faturas/comprovantes/{id}")
+    suspend fun baixarComprovanteFatura(
+        @Path("id") id: Int,
+        @Query("solicitacao") solicitacao: Int? = null,
+    ): Response<ResponseBody>
+
+    @Streaming
+    @GET("escala/faturas/comprovantes/{id}")
+    suspend fun baixarComprovanteFaturaAdmin(
+        @Path("id") id: Int,
+        @Query("usu_id") usuId: Int? = null,
+        @Query("par_id") parId: Int? = null,
+        @Query("solicitacao") solicitacao: Int? = null,
+    ): Response<ResponseBody>
 
     /** Trajeto gravado no servidor; com mapa_id vem só o daquele embarque. */
     @GET("guia/posicoes")

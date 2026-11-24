@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Comprovantes baixados no financeiro: ficam no cache e abrem no visualizador do aparelho. -->
+<paths>
+    <cache-path name="comprovantes" path="comprovantes/" />
+</paths>

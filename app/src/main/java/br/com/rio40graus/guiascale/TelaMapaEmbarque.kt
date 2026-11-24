@@ -592,13 +592,14 @@ fun TelaMapaEmbarque(
                             }
 
                         // O card de cada reserva, reusado nos dois modos.
-                        val cartao: @Composable (ReservaEmbarque, Modifier, Boolean, Boolean) -> Unit =
-                            { reserva, handle, travado, popup ->
+                        val cartao: @Composable (ReservaEmbarque, Modifier, Boolean, Boolean, Boolean) -> Unit =
+                            { reserva, handle, travado, popup, fixo ->
                                 if (travado) {
                                     CartaoEmbarqueTravado(reserva)
                                 } else
                                 CartaoEmbarque(
                                     modoPopup = popup,
+                                    fixo = fixo,
                                     abertoInicial = popup,
                                     reserva = reserva,
                                     dataMapa = dataSelecionada,
@@ -670,7 +671,7 @@ fun TelaMapaEmbarque(
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                     key(reservaObrigatoria.id) {
-                                        cartao(reservaObrigatoria, Modifier, false, true)
+                                        cartao(reservaObrigatoria, Modifier, false, true, false)
                                     }
                                 }
                             }
@@ -743,6 +744,18 @@ fun TelaMapaEmbarque(
                                     ReorderableColumn(
                                         list = ordenadas,
                                         onSettle = { from, to ->
+                                            // O primeiro ponto é fixo: não sai do lugar e nenhum
+                                            // outro passa para o topo (a lista volta ao que era).
+                                            if (from == 0 || to == 0) {
+                                                if (from != to) {
+                                                    Toast.makeText(
+                                                        ctx,
+                                                        "O primeiro ponto de embarque é fixo.",
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                }
+                                                return@ReorderableColumn
+                                            }
                                             val nova = ordenadas.toMutableList()
                                                 .apply { add(to, removeAt(from)) }
                                             ordenadas = nova
@@ -761,9 +774,11 @@ fun TelaMapaEmbarque(
                                         key(reserva.id) {
                                             cartao(
                                                 reserva,
-                                                Modifier.draggableHandle(),
+                                                // O primeiro ponto não tem alça: é fixo.
+                                                if (indice == 0) Modifier else Modifier.draggableHandle(),
                                                 sequencial && indiceDaVez >= 0 && indice > indiceDaVez,
                                                 false,
+                                                indice == 0,
                                             )
                                         }
                                     }
@@ -776,6 +791,7 @@ fun TelaMapaEmbarque(
                                                     Modifier,
                                                     sequencial && indiceDaVez >= 0 && indice > indiceDaVez,
                                                     false,
+                                                    indice == 0,
                                                 )
                                             }
                                         }
@@ -2128,17 +2144,19 @@ private fun statusEmbarqueResolvido(id: Int?): Boolean =
     id == STATUS_CHECK_IN || id == STATUS_NO_SHOW || id == STATUS_PARCIAL || id == 4 || id == 5
 
 /**
- * Reserva ainda não liberada: só o ponto de embarque (nome e endereço). Nada de
- * horário, pax, idioma, telefone, apartamento ou status.
+ * Reserva ainda não liberada: ponto de embarque, horário, cliente e telefone.
+ * Nada de endereço, pax, idioma, apartamento ou status.
  */
 @Composable
 private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque) {
+    val contexto = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
         ?: reserva.endereco?.takeIf { it.isNotBlank() }
         ?: "—"
-    val endereco = reserva.endereco?.takeIf {
-        it.isNotBlank() && !reserva.embarque.isNullOrBlank() && it != reserva.embarque
-    }
+    val hora = reserva.hora?.take(5) ?: "—"
+    val cliente = reserva.pax?.takeIf { it.isNotBlank() }
+    val telefone = reserva.telefone?.takeIf { it.isNotBlank() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2156,14 +2174,56 @@ private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque) {
             modifier = Modifier.padding(top = 2.dp).size(20.dp),
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(hotel, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 18.sp)
-            endereco?.let {
+            // Nome do ponto + horário na ponta direita, como no card liberado.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 Text(
-                    it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    lineHeight = 16.sp,
+                    hotel,
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
                 )
+                Text(hora, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 18.sp, maxLines = 1, softWrap = false)
+            }
+            // Cliente e contato — o resto da reserva (inclusive o endereço) continua escondido.
+            if (cliente != null || telefone != null) {
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    cliente?.let {
+                        Text(it, modifier = Modifier.weight(1f, fill = false), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                    }
+                    telefone?.let { tel ->
+                        Icon(
+                            painter = painterResource(R.drawable.ic_lucide_phone),
+                            contentDescription = stringResource(R.string.mapa_embarque_ligar),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                .clickable {
+                                    linkLigacao(tel)?.let { uri ->
+                                        runCatching {
+                                            contexto.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse(uri)))
+                                        }
+                                    }
+                                }
+                                .padding(6.dp),
+                        )
+                        Text(
+                            tel,
+                            modifier = Modifier.clickable { linkWhatsapp(tel)?.let { uriHandler.openUri(it) } },
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
         Icon(
@@ -2203,6 +2263,8 @@ private fun CartaoEmbarque(
     dragHandleModifier: Modifier = Modifier,
     /** Dentro do popup obrigatório da última reserva: sem alça de arrastar. */
     modoPopup: Boolean = false,
+    /** Primeiro ponto da rota: fixo, a alça de arrastar fica apagada. */
+    fixo: Boolean = false,
     abertoInicial: Boolean = false,
 ) {
     var aberto by remember(reserva.id) { mutableStateOf(abertoInicial) }
@@ -2442,7 +2504,7 @@ private fun CartaoEmbarque(
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_grip_vertical),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (fixo) 0.3f else 1f),
                     modifier = Modifier
                         .padding(start = 6.dp, top = 14.dp)
                         .size(20.dp)

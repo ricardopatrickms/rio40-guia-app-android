@@ -57,6 +57,17 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${mapsApiKey}" />
 
+        <!-- Abrir o comprovante baixado (PDF/imagem) no visualizador do aparelho. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.arquivos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
