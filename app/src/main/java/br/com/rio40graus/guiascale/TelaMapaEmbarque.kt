@@ -595,7 +595,7 @@ fun TelaMapaEmbarque(
                         val cartao: @Composable (ReservaEmbarque, Modifier, Boolean, Boolean, Boolean) -> Unit =
                             { reserva, handle, travado, popup, fixo ->
                                 if (travado) {
-                                    CartaoEmbarqueTravado(reserva)
+                                    CartaoEmbarqueTravado(reserva, handle)
                                 } else
                                 CartaoEmbarque(
                                     modoPopup = popup,
@@ -2148,7 +2148,7 @@ private fun statusEmbarqueResolvido(id: Int?): Boolean =
  * Nada de endereço, pax, idioma, apartamento ou status.
  */
 @Composable
-private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque) {
+private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque, dragHandleModifier: Modifier = Modifier) {
     val contexto = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
@@ -2172,6 +2172,16 @@ private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque) {
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp).size(20.dp),
+        )
+        // O guia reordena o ponto mesmo travado (regra do cliente, igual ao web).
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(20.dp)
+                .then(dragHandleModifier),
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             // Nome do ponto + horário na ponta direita, como no card liberado.
