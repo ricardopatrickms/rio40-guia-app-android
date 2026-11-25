@@ -111,8 +111,27 @@ data class FotoResposta(val foto: String? = null)
 
 /** Trajeto já no servidor — um dia, opcionalmente de um mapa só. */
 data class RespostaPosicoesDia(
-    val data: String?,
+    val data: String? = null,
     val total: Int? = 0,
+    val posicoes: List<PosicaoRemota> = emptyList(),
+    /** Só no escala/posicoes (admin): quem é o guia do trajeto. */
+    val guia: GuiaDoTrajeto? = null,
+)
+
+data class GuiaDoTrajeto(
+    val nome: String? = null,
+    val foto: String? = null,
+)
+
+data class RespostaPosicoesTodos(
+    val guias: List<TrajetoDeUmGuia> = emptyList(),
+)
+
+/** Um guia na visão "Todos": quem é + o trajeto do dia. */
+data class TrajetoDeUmGuia(
+    val usu_id: Int = 0,
+    val nome: String? = null,
+    val foto: String? = null,
     val posicoes: List<PosicaoRemota> = emptyList(),
 )
 
@@ -142,6 +161,8 @@ data class MapaEmbarque(
     val id: Int,
     val tour: String?,
     val tour_id: Int? = null,
+    /** Nome do guia dono do mapa — vem na visão "Todos" (escala/mapa-embarque-dia). */
+    val guia: String? = null,
     val eh_apoio: Boolean = false,
     val bloqueado: Boolean = false,
     val veiculo: VeiculoMapa? = null,
@@ -263,6 +284,9 @@ data class CaixaMapa(
     val saldo: Double = 0.0,
 )
 
+/** Um pax da reserva: nome e telefone (o web mostra um contato por pax). */
+data class PassageiroReserva(val nome: String? = null, val telefone: String? = null)
+
 data class ReservaEmbarque(
     val id: Int,
     val hora: String?,
@@ -299,6 +323,8 @@ data class ReservaEmbarque(
     val status: StatusReserva?,
     val latitude: Double?,
     val longitude: Double?,
+    /** Todos os pax da reserva ("+ Pax" no painel); o primeiro é o de `telefone`. */
+    val passageiros: List<PassageiroReserva> = emptyList(),
 )
 
 data class ParcialEmbarque(
@@ -779,6 +805,25 @@ interface ApiGuias {
     // --------------------------------------------------- inspeção admin (escala)
     // Mesmos JSONs das rotas de guia; só muda o caminho e o usu_id do guia.
 
+    /** Admin, visão "Todos" do Geocheck-in: os mapas de TODOS os guias no dia. */
+    @GET("escala/mapa-embarque-dia")
+    suspend fun mapasDoDiaAdmin(@Query("data") data: String): RespostaMapas
+
+    /** Admin, visão "Todos": o trajeto de cada guia que se moveu no dia. */
+    @GET("escala/posicoes-todos")
+    suspend fun posicoesTodosAdmin(@Query("data") data: String): RespostaPosicoesTodos
+
+    /** Admin: o trajeto (GPS) do guia inspecionado no dia — o Geocheck-in mostra o guia no mapa. */
+    @GET("escala/posicoes")
+    suspend fun posicoesAdmin(
+        @Query("usu_id") usuId: Int,
+        @Query("data") data: String,
+    ): RespostaPosicoesDia
+
+    /** Escala do dia (titular e apoio) — o seletor do Geocheck-in só lista quem trabalha na data. */
+    @GET("escala")
+    suspend fun escalaDoDia(@Query("data") data: String): RespostaEscalaDoDia
+
     @GET("guias/select-options")
     suspend fun guiasSelect(@Query("data") data: String? = null): RespostaGuiasSelect
 
@@ -850,6 +895,19 @@ data class FuncionarioAdmin(
     val id: String? = null,
     val nome: String? = null,
     val cargo: String? = null,
+)
+
+data class RespostaEscalaDoDia(
+    val escalas: List<EscalaDoDia> = emptyList(),
+)
+
+/** Uma linha de GET escala?data= (só o que o seletor de guia usa). */
+data class EscalaDoDia(
+    val par_id: Int = 0,
+    val guide_name: String? = null,
+    val support_par_id: Int? = null,
+    val support_guide_name: String? = null,
+    val status: String? = null,
 )
 
 data class RespostaGuiasSelect(

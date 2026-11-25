@@ -64,6 +64,12 @@ import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MapsComposeExperimentalApi
 import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerComposable
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.unit.sp
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
@@ -120,6 +126,19 @@ fun MapaGoogle(
      */
     aoExpandirMapa: (() -> Unit)? = null,
     aoFecharExpandido: (() -> Unit)? = null,
+    /**
+     * Admin inspecionando: o marcador é o GUIA, com as iniciais e o nome
+     * (igual ao chip "FR Fabio Reis" do web). null = ponto azul do aparelho.
+     */
+    rotuloGuia: String? = null,
+    /** Foto do guia (URL) para o chip; sem foto ficam as iniciais. */
+    fotoGuia: String? = null,
+    /** Onde o guia iniciou o embarque — bandeira verde (admin). */
+    inicio: Pair<Double, Double>? = null,
+    /** Onde o guia encerrou o embarque — bandeira vermelha (admin). */
+    fim: Pair<Double, Double>? = null,
+    /** Visão "Todos": cada guia com cor, trajeto e posição atual. */
+    guias: List<GuiaNoMapa> = emptyList(),
 ) {
     val contexto = LocalContext.current
     val density = LocalDensity.current
@@ -193,10 +212,19 @@ fun MapaGoogle(
             onMapLoaded = { mapaPronto = true },
             onMapClick = { },
         ) {
-            MapEffect(chavePinos, paddingTopoPx, paddingBasePx) { map ->
+            // Admin: o guia entra no enquadramento junto com os pinos (o web faz o
+            // mesmo). Só na 1ª posição — o polling não fica re-enquadrando.
+            val guiaNoEnquadramento = if (rotuloGuia != null) minhaPosicao else null
+            val guiasComPosicao = guias.mapNotNull { it.atual }
+            MapEffect(
+                chavePinos, paddingTopoPx, paddingBasePx,
+                guiaNoEnquadramento != null, guiasComPosicao.size,
+            ) { map ->
                 map.setPadding(0, paddingTopoPx, 0, paddingBasePx)
 
-                val pontos = pinos.map { LatLng(it.latitude, it.longitude) }
+                val pontos = pinos.map { LatLng(it.latitude, it.longitude) } +
+                    listOfNotNull(guiaNoEnquadramento?.let { (lat, lon) -> LatLng(lat, lon) }) +
+                    guiasComPosicao.map { (lat, lon) -> LatLng(lat, lon) }
                 if (pontos.isEmpty()) return@MapEffect
 
                 // newLatLngBounds exige largura/altura > 0; no emulador isso pode
@@ -263,7 +291,24 @@ fun MapaGoogle(
                 }
             }
 
-            minhaPosicao?.let { (lat, lon) ->
+            if (rotuloGuia != null) minhaPosicao?.let { (lat, lon) ->
+                key("guia-rotulo") {
+                    val estadoRotulo = rememberMarkerState(key = "guia-rotulo", position = LatLng(lat, lon))
+                    LaunchedEffect(lat, lon) {
+                        estadoRotulo.position = LatLng(lat, lon)
+                    }
+                    val foto = rememberFotoDoGuia(fotoGuia)
+                    MarkerComposable(
+                        rotuloGuia, foto ?: Unit,
+                        state = estadoRotulo,
+                        anchor = Offset(0.15f, 0.5f),
+                        zIndex = 3f,
+                        onClick = { true },
+                    ) {
+                        ChipDoGuia(rotuloGuia, foto = foto)
+                    }
+                }
+            } else if (guias.isEmpty()) minhaPosicao?.let { (lat, lon) ->
                 key("guia") {
                     val estadoGuia = rememberMarkerState(key = "guia", position = LatLng(lat, lon))
                     LaunchedEffect(lat, lon) {
@@ -277,6 +322,57 @@ fun MapaGoogle(
                         zIndex = 2f,
                         onClick = { true },
                     )
+                }
+            }
+
+            // Bandeiras de início (verde) e fim (vermelha) do embarque do guia.
+            inicio?.let { (lat, lon) ->
+                key("inicio-embarque") {
+                    MarkerComposable(
+                        "inicio",
+                        state = rememberMarkerState(key = "inicio-embarque", position = LatLng(lat, lon)),
+                        anchor = Offset(0.2f, 1f),
+                        title = "Início do embarque",
+                        zIndex = 2f,
+                    ) { Bandeira(corPano = 0xFF16A34A, corMastro = 0xFF15803D) }
+                }
+            }
+            fim?.let { (lat, lon) ->
+                key("fim-embarque") {
+                    MarkerComposable(
+                        "fim",
+                        state = rememberMarkerState(key = "fim-embarque", position = LatLng(lat, lon)),
+                        anchor = Offset(0.2f, 1f),
+                        title = "Fim do embarque",
+                        zIndex = 2f,
+                    ) { Bandeira(corPano = 0xFFDC2626, corMastro = 0xFF991B1B) }
+                }
+            }
+
+            // Visão "Todos": um percurso e um chip por guia, na cor dele.
+            guias.forEach { g ->
+                key("guia-todos-${g.usuId}") {
+                    if (g.trajeto.size > 1) {
+                        Polyline(
+                            points = g.trajeto.map { (lat, lon) -> LatLng(lat, lon) },
+                            color = androidx.compose.ui.graphics.Color(g.cor).copy(alpha = 0.85f),
+                            width = 10f,
+                        )
+                    }
+                    g.atual?.let { (lat, lon) ->
+                        val estado = rememberMarkerState(key = "guia-todos-${g.usuId}", position = LatLng(lat, lon))
+                        LaunchedEffect(lat, lon) { estado.position = LatLng(lat, lon) }
+                        val foto = rememberFotoDoGuia(g.foto)
+                        MarkerComposable(
+                            g.usuId, g.nome.orEmpty(), g.cor, foto ?: Unit,
+                            state = estado,
+                            anchor = Offset(0.15f, 0.5f),
+                            zIndex = 3f,
+                            onClick = { true },
+                        ) {
+                            ChipDoGuia(g.nome ?: "Guia", cor = g.cor, foto = foto)
+                        }
+                    }
                 }
             }
         }
@@ -506,4 +602,146 @@ private fun iconeDoPontoDoGuia(contexto: Context): BitmapDescriptor {
     tela.drawCircle(meio, meio, meio - 3f * d, tinta)
 
     return BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
+/** Um guia na visão "Todos" do Geocheck-in. */
+data class GuiaNoMapa(
+    val usuId: Int,
+    val nome: String?,
+    val foto: String?,
+    /** ARGB — a mesma cor no percurso e no aro do chip. */
+    val cor: Int,
+    val trajeto: List<Pair<Double, Double>>,
+    val atual: Pair<Double, Double>?,
+)
+
+/** Azul do marcador do guia quando não há cor própria (igual ao web). */
+private const val AZUL_GUIA = 0xFF2563EB.toInt()
+
+/**
+ * Cor estável por guia (passo áureo 137,5°) — a mesma conta do corDoGuia do
+ * web, para o mesmo guia ter a mesma cor nas duas telas.
+ */
+fun corDoGuia(usuId: Int): Int {
+    val hue = ((usuId * 137.508) % 360).toFloat()
+    return android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.82f, 0.77f))
+}
+
+/**
+ * Baixa a foto do guia (Coil) como bitmap. MarkerComposable desenha uma vez só,
+ * então a foto entra como chave do marcador — quando chega, ele se redesenha.
+ */
+@Composable
+private fun rememberFotoDoGuia(url: String?): androidx.compose.ui.graphics.ImageBitmap? {
+    val contexto = LocalContext.current
+    var foto by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(url) {
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        // No emulador, "localhost" do servidor local é o 10.0.2.2.
+        val alvo = if (br.com.rio40graus.guiascale.BuildConfig.API_URL.contains("10.0.2.2")) {
+            url.replace("://localhost", "://10.0.2.2").replace("://127.0.0.1", "://10.0.2.2")
+        } else {
+            url
+        }
+        val pedido = coil.request.ImageRequest.Builder(contexto)
+            .data(alvo)
+            .allowHardware(false)
+            .size(96)
+            .build()
+        val resultado = coil.ImageLoader(contexto).execute(pedido)
+        val drawable = (resultado as? coil.request.SuccessResult)?.drawable ?: return@LaunchedEffect
+        foto = (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap?.asImageBitmap()
+    }
+    return foto
+}
+
+/**
+ * Marcador do guia na visão do admin: avatar (foto ou iniciais) + o nome numa
+ * pílula branca — o mesmo chip ("FR Fabio Reis") do Geocheck-in do web.
+ */
+@Composable
+private fun ChipDoGuia(
+    nome: String,
+    cor: Int = AZUL_GUIA,
+    foto: androidx.compose.ui.graphics.ImageBitmap? = null,
+) {
+    val iniciais = nome.trim().split(Regex("\\s+"))
+        .filter { it.isNotEmpty() }
+        .let { partes ->
+            ((partes.firstOrNull()?.take(1) ?: "") + (if (partes.size > 1) partes.last().take(1) else ""))
+                .uppercase()
+        }
+    val corCompose = androidx.compose.ui.graphics.Color(cor)
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .shadow(3.dp, androidx.compose.foundation.shape.RoundedCornerShape(50))
+            .background(
+                androidx.compose.ui.graphics.Color.White,
+                androidx.compose.foundation.shape.RoundedCornerShape(50),
+            )
+            .padding(start = 2.dp, top = 2.dp, bottom = 2.dp, end = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(30.dp)
+                .background(corCompose, androidx.compose.foundation.shape.CircleShape)
+                .padding(if (foto != null) 2.dp else 0.dp),
+        ) {
+            if (foto != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = foto,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(androidx.compose.foundation.shape.CircleShape),
+                )
+            } else {
+                androidx.compose.material3.Text(
+                    iniciais,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                )
+            }
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+        androidx.compose.material3.Text(
+            nome,
+            color = androidx.compose.ui.graphics.Color(0xFF152826),
+            fontSize = 12.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Bandeira de início/fim do embarque — o mesmo desenho do web (mastro + pano). */
+@Composable
+private fun Bandeira(corPano: Long, corMastro: Long) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(width = 30.dp, height = 38.dp)) {
+        val ex = size.width / 30f
+        val ey = size.height / 38f
+        drawLine(
+            color = androidx.compose.ui.graphics.Color(corMastro),
+            start = Offset(6f * ex, 4f * ey),
+            end = Offset(6f * ex, 36f * ey),
+            strokeWidth = 3f * ex,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        val pano = androidx.compose.ui.graphics.Path().apply {
+            moveTo(6f * ex, 5f * ey)
+            lineTo(25f * ex, 10f * ey)
+            lineTo(6f * ex, 16f * ey)
+            close()
+        }
+        drawPath(pano, androidx.compose.ui.graphics.Color(corPano))
+        drawPath(
+            pano,
+            androidx.compose.ui.graphics.Color.White,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f * ex),
+        )
+    }
 }

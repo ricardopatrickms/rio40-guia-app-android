@@ -2140,7 +2140,7 @@ private data class OpcaoStatusEmbarque(
  * check-in, no-show, parcial e cancelada. Repasse (5) também conta: não é
  * decisão do guia, e ele nunca conseguiria marcá-la — travaria a fila.
  */
-private fun statusEmbarqueResolvido(id: Int?): Boolean =
+internal fun statusEmbarqueResolvido(id: Int?): Boolean =
     id == STATUS_CHECK_IN || id == STATUS_NO_SHOW || id == STATUS_PARCIAL || id == 4 || id == 5
 
 /**
@@ -2149,31 +2149,25 @@ private fun statusEmbarqueResolvido(id: Int?): Boolean =
  */
 @Composable
 private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque, dragHandleModifier: Modifier = Modifier) {
-    val contexto = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val hotel = reserva.embarque?.takeIf { it.isNotBlank() }
         ?: reserva.endereco?.takeIf { it.isNotBlank() }
         ?: "—"
     val hora = reserva.hora?.take(5) ?: "—"
     val cliente = reserva.pax?.takeIf { it.isNotBlank() }
     val telefone = reserva.telefone?.takeIf { it.isNotBlank() }
+    // Reserva com "+ Pax" no painel: um contato por pax, igual ao web.
+    val paxLinhas = paxDaReserva(reserva)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(end = 12.dp, top = 8.dp, bottom = 8.dp, start = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_map_pin),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp).size(20.dp),
-        )
-        // O guia reordena o ponto mesmo travado (regra do cliente, igual ao web).
+        // Mesma ordem do web: a alça primeiro (o guia reordena mesmo travado), depois o pino.
         Icon(
             painter = painterResource(R.drawable.ic_lucide_grip_vertical),
             contentDescription = null,
@@ -2182,6 +2176,12 @@ private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque, dragHandleModifier: 
                 .padding(top = 2.dp)
                 .size(20.dp)
                 .then(dragHandleModifier),
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_map_pin),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp).size(20.dp),
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             // Nome do ponto + horário na ponta direita, como no card liberado.
@@ -2196,7 +2196,9 @@ private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque, dragHandleModifier: 
                 Text(hora, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 18.sp, maxLines = 1, softWrap = false)
             }
             // Cliente e contato — o resto da reserva (inclusive o endereço) continua escondido.
-            if (cliente != null || telefone != null) {
+            if (paxLinhas.isNotEmpty()) {
+                ListaPax(paxLinhas, modifier = Modifier.padding(top = 4.dp))
+            } else if (cliente != null || telefone != null) {
                 Row(
                     modifier = Modifier.padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2205,34 +2207,7 @@ private fun CartaoEmbarqueTravado(reserva: ReservaEmbarque, dragHandleModifier: 
                     cliente?.let {
                         Text(it, modifier = Modifier.weight(1f, fill = false), fontWeight = FontWeight.Medium, fontSize = 13.sp)
                     }
-                    telefone?.let { tel ->
-                        Icon(
-                            painter = painterResource(R.drawable.ic_lucide_phone),
-                            contentDescription = stringResource(R.string.mapa_embarque_ligar),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                                .clickable {
-                                    linkLigacao(tel)?.let { uri ->
-                                        runCatching {
-                                            contexto.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse(uri)))
-                                        }
-                                    }
-                                }
-                                .padding(6.dp),
-                        )
-                        Text(
-                            tel,
-                            modifier = Modifier.clickable { linkWhatsapp(tel)?.let { uriHandler.openUri(it) } },
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    telefone?.let { TelefonePax(it) }
                 }
             }
         }
@@ -2377,7 +2352,10 @@ private fun CartaoEmbarque(
         null
     }
     val checkInQuando = formatarCheckInEm(reserva.checked_in_at)
+    // Reserva com "+ Pax" no painel: um contato por pax (2 e o "+N pax"), igual ao web.
+    val paxLinhas = paxDaReserva(reserva)
     val temContato = !reserva.telefone.isNullOrBlank()
+        || paxLinhas.isNotEmpty()
         || !reserva.observacao.isNullOrBlank()
         || statusLocal == STATUS_CHECK_IN
 
@@ -2730,39 +2708,12 @@ private fun CartaoEmbarque(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                reserva.telefone?.takeIf { it.isNotBlank() }?.let { tel ->
-                    Icon(
-                        painter = painterResource(R.drawable.ic_lucide_phone),
-                        contentDescription = stringResource(R.string.mapa_embarque_ligar),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                            .clickable {
-                                linkLigacao(tel)?.let { uri ->
-                                    runCatching {
-                                        contexto.startActivity(
-                                            Intent(Intent.ACTION_DIAL, Uri.parse(uri)),
-                                        )
-                                    }
-                                }
-                            }
-                            .padding(6.dp),
-                    )
-                    Text(
-                        tel,
-                        modifier = Modifier.clickable {
-                            linkWhatsapp(tel)?.let { uriHandler.openUri(it) }
-                        },
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                if (paxLinhas.isNotEmpty()) {
+                    ListaPax(paxLinhas, modifier = Modifier.weight(1f), limite = 2, tamanho = 14.sp)
+                } else {
+                    reserva.telefone?.takeIf { it.isNotBlank() }?.let { TelefonePax(it, tamanho = 14.sp) }
+                    Spacer(Modifier.weight(1f))
                 }
-                Spacer(Modifier.weight(1f))
                 if (!reserva.observacao.isNullOrBlank()) {
                     Box {
                         Icon(
@@ -3299,14 +3250,14 @@ private fun bandeiraIdioma(idioma: String?): String {
 private fun digitosTelefone(telefone: String): String =
     telefone.filter { it.isDigit() }
 
-private fun linkWhatsapp(telefone: String): String? {
+internal fun linkWhatsapp(telefone: String): String? {
     val numero = digitosTelefone(telefone)
     if (numero.length < 10) return null
     val internacional = telefone.trim().startsWith("+") || numero.length > 11
     return "https://wa.me/${if (internacional) numero else "55$numero"}"
 }
 
-private fun linkLigacao(telefone: String): String? {
+internal fun linkLigacao(telefone: String): String? {
     val numero = digitosTelefone(telefone)
     if (numero.length < 8) return null
     val prefixo = if (telefone.trim().startsWith("+")) "+" else ""

@@ -787,6 +787,11 @@ private fun ConteudoVisaoGeral(
                     titulo = stringResource(R.string.painel_proximos),
                     itens = kpis.proximos,
                 )
+
+                // Fim da Visão Geral do web: evolução, transportes e ranking.
+                BlocoEvolucao(kpis.evolucao)
+                BlocoTransportes(kpis.transportes)
+                BlocoRankingPasseios(kpis.passeiosRanking)
             }
         }
         else -> GradeEsqueleto()

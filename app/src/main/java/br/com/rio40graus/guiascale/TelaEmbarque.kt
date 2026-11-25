@@ -67,6 +67,12 @@ import br.com.rio40graus.guiascale.rede.MapaEmbarque
 import br.com.rio40graus.guiascale.rede.ParcelaOpcao
 import br.com.rio40graus.guiascale.rede.ReservaEmbarque
 import br.com.rio40graus.guiascale.rede.RespostaMotivos
+import br.com.rio40graus.guiascale.rede.RespostaPosicoesDia
+import sh.calvin.reorderable.ReorderableColumn
+import androidx.compose.runtime.key
+import br.com.rio40graus.guiascale.rede.RespostaPosicoesTodos
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.material.icons.filled.ArrowDropDown
 import br.com.rio40graus.guiascale.rede.STATUS_CHECK_IN
 import br.com.rio40graus.guiascale.rede.STATUS_NO_SHOW
 import br.com.rio40graus.guiascale.rede.STATUS_PARCIAL
@@ -217,9 +223,35 @@ fun TelaEmbarque(
     embarqueAtivo: Boolean = false,
     aoAlternarEmbarque: (mapaId: Int?) -> Unit = {},
     aoCarregarTrajeto: (data: String, mapaIds: List<Int>, aoTerminar: (List<Pair<Double, Double>>?, String?) -> Unit) -> Unit = { _, _, done -> done(emptyList(), null) },
+    /** Data com que a tela abre (o admin troca de guia e a data continua a mesma). */
+    dataInicial: String? = null,
+    /** Avisa a data escolhida — o seletor de guia do admin lista só os escalados nela. */
+    aoTrocarData: (String) -> Unit = {},
+    /**
+     * Admin inspecionando: carrega o trajeto do GUIA no dia (escala/posicoes).
+     * Com ele o mapa mostra o guia (posição + nome) no lugar do GPS do aparelho,
+     * igual ao web. null = o próprio guia logado.
+     */
+    aoCarregarGuiaAdmin: ((data: String, aoTerminar: (RespostaPosicoesDia?) -> Unit) -> Unit)? = null,
+    /** Admin escolheu "Todos" no seletor: todos os guias do dia no mesmo mapa. */
+    todosGuias: Boolean = false,
+    /** Visão "Todos": o trajeto de cada guia do dia (escala/posicoes-todos). */
+    aoCarregarTodosAdmin: ((data: String, aoTerminar: (RespostaPosicoesTodos?) -> Unit) -> Unit)? = null,
+    /** usu_id cujo canal guia.{id} o tempo real escuta (o guia logado ou o inspecionado). */
+    usuIdTempoReal: Int? = null,
+    /** Salva a nova ordem dos pontos de um mapa — o mesmo do Mapa de embarque. */
+    aoOrdenarReservas: ((mapaId: Int, ids: List<Int>, aoTerminar: (String?) -> Unit) -> Unit)? = null,
 ) {
+    val comoAdmin = aoCarregarGuiaAdmin != null || todosGuias
+    var passeioId by remember { mutableStateOf<String?>(null) }
+    // Tempo real (Reverb): última posição empurrada e onde o guia encerrou.
+    var posAoVivo by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var fimAoVivo by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var recarregarTrajeto by remember { mutableStateOf(0) }
+    var trajetosTodos by remember { mutableStateOf<RespostaPosicoesTodos?>(null) }
     val hojeIso = remember { dataIsoDeHoje() }
-    var dataSelecionada by remember { mutableStateOf(hojeIso) }
+    var dataSelecionada by remember { mutableStateOf(dataInicial ?: hojeIso) }
+    LaunchedEffect(dataSelecionada) { aoTrocarData(dataSelecionada) }
     var mostrarCalendario by remember { mutableStateOf(false) }
 
     var mapas by remember { mutableStateOf<List<MapaEmbarque>?>(null) }
@@ -231,6 +263,7 @@ fun TelaEmbarque(
     /** Incrementa a cada toque na lista para forçar o mapa a recentralizar. */
     var focoPedido by remember { mutableStateOf(0) }
     var editando by remember { mutableStateOf<Pair<MapaEmbarque, ReservaEmbarque>?>(null) }
+    val contextoTela = LocalContext.current
     var apenasAtrasados by remember { mutableStateOf(false) }
     var trajetoRemoto by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
 
@@ -264,8 +297,37 @@ fun TelaEmbarque(
         }
     }
 
+    // Admin: o guia no mapa vem do servidor. Hoje atualiza a cada 15s (o web
+    // faz o mesmo polling como fallback do tempo real).
+    var trajetoDoGuia by remember { mutableStateOf<RespostaPosicoesDia?>(null) }
+    LaunchedEffect(dataSelecionada) {
+        trajetoDoGuia = null
+        trajetosTodos = null
+        posAoVivo = null
+        fimAoVivo = null
+    }
+    LaunchedEffect(dataSelecionada, ehHoje, recarregar, recarregarTrajeto) {
+        val carregar = aoCarregarGuiaAdmin ?: return@LaunchedEffect
+        while (true) {
+            carregar(dataSelecionada) { r -> if (r != null) trajetoDoGuia = r }
+            if (!ehHoje) break
+            kotlinx.coroutines.delay(15_000)
+        }
+    }
+    // Visão "Todos": o percurso de cada guia, por polling de 15s (como o web).
+    LaunchedEffect(dataSelecionada, ehHoje, recarregar, recarregarTrajeto, todosGuias) {
+        val carregar = aoCarregarTodosAdmin ?: return@LaunchedEffect
+        if (!todosGuias) return@LaunchedEffect
+        while (true) {
+            carregar(dataSelecionada) { r -> if (r != null) trajetosTodos = r }
+            if (!ehHoje) break
+            kotlinx.coroutines.delay(15_000)
+        }
+    }
+
     // Histórico: o rastro já está no servidor, filtrado por mapa.
     LaunchedEffect(dataSelecionada, idsMapas, ehHoje, recarregar) {
+        if (comoAdmin) return@LaunchedEffect
         if (ehHoje || idsMapas.isEmpty()) {
             trajetoRemoto = emptyList()
             return@LaunchedEffect
@@ -304,15 +366,137 @@ fun TelaEmbarque(
     }
 
     // Cada reserva junto do mapa a que pertence: o check-in precisa dos dois.
-    val pontos = remember(mapas) {
-        mapas.orEmpty().flatMap { mapa -> mapa.reservas.map { mapa to it } }
+    /*
+     * Ordem arrastada aqui, antes de o servidor confirmar (o ReorderableColumn
+     * precisa da lista nova na hora, senão o item volta). Some quando os mapas
+     * recarregam — aí a ordem já vem do servidor, a mesma do Mapa de embarque.
+     */
+    var ordemLocal by remember(mapas) { mutableStateOf<Map<Int, List<Int>>>(emptyMap()) }
+    val mapasEfetivos = remember(mapas, ordemLocal) {
+        mapas.orEmpty().map { m ->
+            val ids = ordemLocal[m.id] ?: return@map m
+            m.copy(
+                reservas = ids.mapNotNull { id -> m.reservas.firstOrNull { it.id == id } } +
+                    m.reservas.filter { it.id !in ids },
+            )
+        }
+    }
+    val todasAsReservas = remember(mapasEfetivos) {
+        mapasEfetivos.flatMap { mapa -> mapa.reservas.map { mapa to it } }
             .sortedBy { it.second.hora ?: "" }
     }
+    // Igual ao web: com um guia só, o mapa com acerto fechado sai da tela; em
+    // "Todos" entra tudo (com o selo "acerto fechado"), só para consulta.
+    val reservasVisiveis = remember(todasAsReservas, todosGuias) {
+        if (todosGuias) todasAsReservas else todasAsReservas.filter { !it.first.bloqueado }
+    }
+    // Filtro "Todos os passeios" (admin): um item por passeio das reservas visíveis.
+    val passeios = remember(reservasVisiveis) {
+        reservasVisiveis
+            .mapNotNull { (m, _) ->
+                val id = m.tour_id?.toString() ?: m.tour?.trim().orEmpty()
+                if (id.isEmpty()) null else id to (m.tour?.trim()?.takeIf { it.isNotEmpty() } ?: "Passeio")
+            }
+            .distinctBy { it.first }
+            .sortedBy { it.second.lowercase(Locale("pt", "BR")) }
+    }
+    LaunchedEffect(passeios) {
+        if (passeioId != null && passeios.none { it.first == passeioId }) passeioId = null
+    }
+    val pontos = if (passeioId == null) {
+        reservasVisiveis
+    } else {
+        reservasVisiveis.filter { (m, _) ->
+            (m.tour_id?.toString() ?: m.tour?.trim().orEmpty()) == passeioId
+        }
+    }
+    /*
+     * Embarques em sequência — a MESMA regra do Mapa de embarque: em cada mapa,
+     * na ordem que o guia arrastou, só a primeira reserva em aberto está
+     * liberada; as de trás ficam travadas (ponto, horário, cliente e contato).
+     * A última em aberto abre num popup sem saída. Só para o guia — o admin
+     * inspeciona e vê tudo, como no Mapa.
+     */
+    val sequencial = !comoAdmin
+    val (travados, reservaObrigatoria) = remember(reservasVisiveis, sequencial) {
+        val ids = mutableSetOf<Int>()
+        var obrigatoria: Pair<MapaEmbarque, ReservaEmbarque>? = null
+        if (sequencial) {
+            reservasVisiveis.map { it.first }.distinctBy { it.id }.forEach { mapa ->
+                // mapa.reservas já vem na ordem do Mapa de embarque.
+                val ordem = mapa.reservas.filter { r -> reservasVisiveis.any { it.second.id == r.id } }
+                val vez = ordem.indexOfFirst { !statusEmbarqueResolvido(it.status?.id) }
+                if (vez >= 0) {
+                    ordem.drop(vez + 1).forEach { ids.add(it.id) }
+                    if (vez == ordem.lastIndex && obrigatoria == null) obrigatoria = mapa to ordem[vez]
+                }
+            }
+        }
+        ids.toSet() to obrigatoria
+    }
+    /** Abre o check-in — ponto travado não abre (o guia marca a anterior antes). */
+    fun abrirCheckin(mapa: MapaEmbarque, reserva: ReservaEmbarque) {
+        if (reserva.id in travados) {
+            android.widget.Toast.makeText(
+                contextoTela,
+                "Marque o status da reserva anterior para liberar esta.",
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        editando = mapa to reserva
+    }
     val comCoordenada = pontos.filter { it.second.latitude != null && it.second.longitude != null }
-    val posicaoMapa = if (ehHoje) minhaPosicao else null
+    val posicoesDoGuia = remember(trajetoDoGuia, todosGuias) {
+        if (todosGuias) emptyList()
+        else trajetoDoGuia?.posicoes.orEmpty().map { it.latitude to it.longitude }
+    }
+    // Admin: o marcador é o guia (posição ao vivo ou último ponto), não o aparelho.
+    val posicaoMapa = if (comoAdmin) null else if (ehHoje) minhaPosicao else null
+    val posicaoNoMapa = if (comoAdmin) {
+        if (todosGuias) null else posAoVivo ?: posicoesDoGuia.lastOrNull()
+    } else {
+        posicaoMapa?.let { it.latitude to it.longitude }
+    }
+    val nomeDoGuiaNoMapa = if (comoAdmin && !todosGuias) {
+        trajetoDoGuia?.guia?.nome?.takeIf { it.isNotBlank() }
+            ?: Sessao.guiaInspecionadoNome?.takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+    val fotoDoGuiaNoMapa = if (comoAdmin && !todosGuias) trajetoDoGuia?.guia?.foto else null
+    // Bandeiras: início = 1º ponto do dia; fim = onde ele tocou "Parar embarque"
+    // (hoje, pelo tempo real) ou o último ponto (dia passado). Só admin, como no web.
+    val inicioNoMapa = if (comoAdmin && !todosGuias) posicoesDoGuia.firstOrNull() else null
+    val fimNoMapa = when {
+        !comoAdmin || todosGuias -> null
+        ehHoje -> fimAoVivo
+        else -> posicoesDoGuia.lastOrNull()
+    }
+    // Visão "Todos": um item por guia que se moveu no dia, com cor própria.
+    val guiasNoMapa = remember(trajetosTodos, todosGuias) {
+        if (!todosGuias) emptyList()
+        else trajetosTodos?.guias.orEmpty()
+            .filter { it.posicoes.isNotEmpty() }
+            .map { g ->
+                val trilha = g.posicoes.map { it.latitude to it.longitude }
+                br.com.rio40graus.guiascale.ui.GuiaNoMapa(
+                    usuId = g.usu_id,
+                    nome = g.nome,
+                    foto = g.foto,
+                    cor = br.com.rio40graus.guiascale.ui.corDoGuia(g.usu_id),
+                    trajeto = trilha,
+                    atual = trilha.lastOrNull(),
+                )
+            }
+    }
     // Cada mapa só vê o próprio rastro — local (hoje) ou remoto (histórico).
-    val trajetoMapa = remember(ehHoje, trajetoLocal, trajetoRemoto, idsMapas) {
-        if (ehHoje) {
+    val trajetoMapa = remember(ehHoje, trajetoLocal, trajetoRemoto, idsMapas, comoAdmin, posicoesDoGuia, posAoVivo) {
+        if (comoAdmin) {
+            // A posição ao vivo entra no fim do percurso (o evento leva só a última).
+            val ao = posAoVivo
+            if (ao != null && posicoesDoGuia.lastOrNull() != ao) posicoesDoGuia + ao else posicoesDoGuia
+        } else if (ehHoje) {
             val ids = idsMapas.toSet()
             trajetoLocal
                 .filter { it.mapaId != null && it.mapaId in ids }
@@ -320,6 +504,51 @@ fun TelaEmbarque(
         } else {
             trajetoRemoto
         }
+    }
+
+    /*
+     * Tempo real (Reverb) — o mesmo do web (useRealtimeMapa): um canal por mapa,
+     * o canal do guia e, em "Todos", o canal compartilhado. O evento é só um
+     * aviso: a tela rebusca pela API de sempre. O polling continua de reserva.
+     */
+    val canaisTempoReal = remember(idsMapas, usuIdTempoReal, todosGuias) {
+        buildList {
+            idsMapas.distinct().sorted().forEach { add("mapa.$it") }
+            usuIdTempoReal?.let { add("guia.$it") }
+            if (todosGuias) add("guias.todos")
+        }
+    }
+    var ultimoPingTodos by remember { mutableStateOf(0L) }
+    DisposableEffect(canaisTempoReal) {
+        val conexao = br.com.rio40graus.guiascale.rede.TempoReal(canaisTempoReal) { _, evento, dados ->
+            when (evento) {
+                "reserva.atualizada", "acerto.atualizado", "mapa.atualizado" -> atualizarEmSilencio()
+                "guia.posicao", "guia.encerramento" -> {
+                    if (todosGuias) {
+                        // Qualquer guia se mexeu: rebusca os percursos (no máx. a cada 2s).
+                        val agora = System.currentTimeMillis()
+                        if (agora - ultimoPingTodos >= 2_000) {
+                            ultimoPingTodos = agora
+                            recarregarTrajeto++
+                        }
+                    } else if (comoAdmin) {
+                        runCatching {
+                            if (evento == "guia.posicao") {
+                                val u = dados?.get("ultima")?.takeIf { it.isJsonObject }?.asJsonObject
+                                if (u != null) {
+                                    posAoVivo = u.get("latitude").asDouble to u.get("longitude").asDouble
+                                }
+                            } else if (dados != null) {
+                                fimAoVivo = dados.get("latitude").asDouble to dados.get("longitude").asDouble
+                            }
+                        }
+                        recarregarTrajeto++
+                    }
+                }
+            }
+        }
+        conexao.ligar()
+        onDispose { conexao.desligar() }
     }
 
     val contexto = LocalContext.current
@@ -387,40 +616,8 @@ fun TelaEmbarque(
             }
         }
 
-        pontos.isEmpty() -> Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp)
-                    .padding(top = 8.dp, bottom = ESPACO_DA_BARRA + 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Cabecalho(
-                    dataExibicao = dataExibicao,
-                    noMapa = 0,
-                    total = 0,
-                    ehHoje = ehHoje,
-                    embarqueAtivo = embarqueAtivo,
-                    aoAbrirCalendario = { mostrarCalendario = true },
-                    aoIrParaHoje = { dataSelecionada = hojeIso },
-                    aoAtualizar = { recarregar++ },
-                    aoAlternarEmbarque = aoIniciarOuParar,
-                )
-                Cartao {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.embarque_sem_mapa),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-
+        // Sem pontos no dia o mapa continua na tela (igual ao web, que sempre
+        // mostra o mapa com a posição do guia); só a lista vira o aviso de vazio.
         else -> {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 // Igual ao web: mapa com ~60vh (mínimo 380dp) — a lista fica abaixo da dobra.
@@ -463,9 +660,19 @@ fun TelaEmbarque(
                             aoAlternarEmbarque = aoIniciarOuParar,
                         )
 
+                        // Admin: "Todos os passeios" — o mesmo select do web.
+                        if (comoAdmin && passeios.isNotEmpty()) {
+                            FiltroPasseio(
+                                passeios = passeios,
+                                selecionado = passeioId,
+                                aoEscolher = { passeioId = it },
+                            )
+                        }
+
                         Legendas()
 
-                        if (ehHoje) {
+                        // Admin não vê "Próximo embarque" (a distância seria do aparelho dele) — igual ao web.
+                        if (ehHoje && !comoAdmin) {
                             pontos.firstOrNull { !resolvida(it.second.status?.id) }?.let { (_, proxima) ->
                                 ProximoEmbarque(reserva = proxima, minhaPosicao = posicaoMapa)
                             }
@@ -484,7 +691,12 @@ fun TelaEmbarque(
                         ) {
                             MapaGoogle(
                                 pinos = pinos,
-                                minhaPosicao = posicaoMapa?.let { it.latitude to it.longitude },
+                                minhaPosicao = posicaoNoMapa,
+                                rotuloGuia = nomeDoGuiaNoMapa,
+                                fotoGuia = fotoDoGuiaNoMapa,
+                                inicio = inicioNoMapa,
+                                fim = fimNoMapa,
+                                guias = guiasNoMapa,
                                 trajeto = trajetoMapa,
                                 aoTocarPino = { selecionada = it },
                                 focarEm = selecionada,
@@ -503,7 +715,7 @@ fun TelaEmbarque(
                                     aoFechar = { selecionada = null },
                                     aoEditar = {
                                         selecionada = null
-                                        editando = mapa to reserva
+                                        abrirCheckin(mapa, reserva)
                                     },
                                     modifier = Modifier.align(Alignment.Center),
                                 )
@@ -521,7 +733,20 @@ fun TelaEmbarque(
                             )
                         }
 
-                        ListaDePontos(
+                        if (pontos.isEmpty()) {
+                            Cartao {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.embarque_sem_mapa),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else ListaDePontos(
                             pontos = pontos,
                             dataIso = dataSelecionada,
                             ehHoje = ehHoje,
@@ -536,7 +761,24 @@ fun TelaEmbarque(
                             },
                             aoEditar = { mapa, reserva ->
                                 selecionada = null
-                                editando = mapa to reserva
+                                abrirCheckin(mapa, reserva)
+                            },
+                            mostrarGuia = todosGuias,
+                            travados = travados,
+                            ordemDoMapa = sequencial,
+                            aoReordenar = aoOrdenarReservas?.let { salvar ->
+                                { mapa, ids ->
+                                    ordemLocal = ordemLocal + (mapa.id to ids)
+                                    salvar(mapa.id, ids) { falha ->
+                                        if (falha != null) {
+                                            ordemLocal = ordemLocal - mapa.id
+                                            android.widget.Toast.makeText(contextoTela, falha, android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            // Recarrega: a ordem do servidor vale aqui e no Mapa de embarque.
+                                            atualizarEmSilencio()
+                                        }
+                                    }
+                                }
                             },
                         )
                     }
@@ -556,7 +798,12 @@ fun TelaEmbarque(
                             ) {
                                 MapaGoogle(
                                     pinos = pinos,
-                                    minhaPosicao = posicaoMapa?.let { it.latitude to it.longitude },
+                                    minhaPosicao = posicaoNoMapa,
+                                rotuloGuia = nomeDoGuiaNoMapa,
+                                fotoGuia = fotoDoGuiaNoMapa,
+                                inicio = inicioNoMapa,
+                                fim = fimNoMapa,
+                                guias = guiasNoMapa,
                                     trajeto = trajetoMapa,
                                     aoTocarPino = { selecionada = it },
                                     focarEm = selecionada,
@@ -578,7 +825,7 @@ fun TelaEmbarque(
                                         // fechar a modal, o guia volta para o mapa, sem sair.
                                         aoEditar = {
                                             selecionada = null
-                                            editando = mapa to reserva
+                                            abrirCheckin(mapa, reserva)
                                         },
                                         modifier = Modifier.align(Alignment.Center),
                                     )
@@ -596,9 +843,12 @@ fun TelaEmbarque(
     // o mapa recompõe ~1x/s pelo GPS; dentro dele, o AcoesCheckIn era recriado a
     // cada tick e o estado de "salvar pagamento" ficava instável (botão preso em
     // loading, sem feedback). No nível da tela ele fica estável.
-    editando?.let { (mapa, reserva) ->
+    // A última reserva em aberto abre sozinha, sem saída (popup obrigatório).
+    (reservaObrigatoria ?: editando)?.let { (mapa, reserva) ->
+        val ehObrigatorio = reservaObrigatoria != null
         val atual = pontos.firstOrNull { it.second.id == reserva.id } ?: (mapa to reserva)
         DialogCheckInEmbarque(
+            obrigatorio = ehObrigatorio,
             reserva = atual.second,
             nomeTour = atual.first.tour,
             bloqueado = atual.first.bloqueado,
@@ -628,7 +878,7 @@ fun TelaEmbarque(
                     aoSalvarIdioma(atual.second.id, idiomaId, aoTerminar)
                 },
             ),
-            aoFechar = { if (enviando != atual.second.id) editando = null },
+            aoFechar = { if (!ehObrigatorio && enviando != atual.second.id) editando = null },
             aoRecarregar = { atualizarEmSilencio() },
         )
     }
@@ -1066,9 +1316,28 @@ private fun ListaDePontos(
     aoAlternarFiltro: () -> Unit,
     aoTocarPonto: (MapaEmbarque, ReservaEmbarque) -> Unit,
     aoEditar: (MapaEmbarque, ReservaEmbarque) -> Unit,
+    /** Visão "Todos": mostra o guia e o passeio de cada ponto. */
+    mostrarGuia: Boolean = false,
+    /** Reservas que ainda não são a vez (embarque em sequência). */
+    travados: Set<Int> = emptySet(),
+    /** Guia: a lista segue a ordem do Mapa de embarque (que define a da vez). */
+    ordemDoMapa: Boolean = false,
+    /** Guia reordenou os pontos de um mapa (null = sem arrastar). */
+    aoReordenar: ((MapaEmbarque, List<Int>) -> Unit)? = null,
 ) {
+    val ordenados = if (ordemDoMapa) {
+        val mapasNaOrdem = pontos.map { it.first }.distinctBy { it.id }
+        pontos.sortedWith(
+            compareBy(
+                { (m, _) -> mapasNaOrdem.indexOfFirst { it.id == m.id } },
+                { (m, r) -> m.reservas.indexOfFirst { it.id == r.id } },
+            ),
+        )
+    } else {
+        pontos
+    }
     // Igual ao web: filtro "apenas atrasados" usa previsto × checked_in_at.
-    val visiveis = pontos.filter { (_, r) ->
+    val visiveis = ordenados.filter { (_, r) ->
         if (!ehHoje || !apenasAtrasados) return@filter true
         (calcularAtraso(dataIso, r.hora, r.checked_in_at)?.minutos ?: 0) > 0
     }
@@ -1130,20 +1399,137 @@ private fun ListaDePontos(
                 }
             }
 
-            visiveis.forEachIndexed { index, (mapa, reserva) ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
-                    )
+            // Uma linha da lista; `alca` = modificador de arrastar (null = sem alça).
+            val linha: @Composable (MapaEmbarque, ReservaEmbarque, Modifier?, Boolean) -> Unit =
+                { mapa, reserva, alca, fixo ->
+                    if (reserva.id in travados) {
+                        LinhaTravada(reserva, alca = alca, fixo = fixo)
+                    } else {
+                        LinhaDoPonto(
+                            reserva = reserva,
+                            // Qualquer dia: atraso = previsto × horário do check-in (web).
+                            atraso = calcularAtraso(dataIso, reserva.hora, reserva.checked_in_at),
+                            enviando = enviando == reserva.id,
+                            bloqueado = mapa.bloqueado,
+                            aoTocar = { aoTocarPonto(mapa, reserva) },
+                            aoEditar = { aoEditar(mapa, reserva) },
+                            guiaEPasseio = if (mostrarGuia) {
+                                listOfNotNull(
+                                    mapa.guia?.takeIf { it.isNotBlank() },
+                                    mapa.tour?.takeIf { it.isNotBlank() },
+                                ).joinToString(" · ").ifEmpty { null }
+                            } else {
+                                null
+                            },
+                            alca = alca,
+                            fixo = fixo,
+                        )
+                    }
                 }
-                LinhaDoPonto(
-                    reserva = reserva,
-                    // Qualquer dia: atraso = previsto × horário do check-in (web).
-                    atraso = calcularAtraso(dataIso, reserva.hora, reserva.checked_in_at),
-                    enviando = enviando == reserva.id,
-                    bloqueado = mapa.bloqueado,
-                    aoTocar = { aoTocarPonto(mapa, reserva) },
-                    aoEditar = { aoEditar(mapa, reserva) },
+            val divisor: @Composable () -> Unit = {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+            }
+
+            // Guia: arrasta para reordenar, igual ao Mapa de embarque — um grupo por
+            // mapa (cada embarque tem a sua sequência), o 1º ponto de cada um fixo.
+            // Desligado com o filtro "apenas atrasados" (a lista fica incompleta).
+            val reordenar = aoReordenar
+            if (ordemDoMapa && reordenar != null && !(ehHoje && apenasAtrasados)) {
+                val contexto = LocalContext.current
+                val grupos = visiveis.groupBy { it.first.id }.values.toList()
+                grupos.forEachIndexed { g, grupo ->
+                    if (g > 0) divisor()
+                    val mapa = grupo.first().first
+                    val podeArrastar = !mapa.bloqueado
+                    ReorderableColumn(
+                        list = grupo,
+                        onSettle = { de, para ->
+                            if (de == para) return@ReorderableColumn
+                            if (de == 0 || para == 0) {
+                                Toast.makeText(contexto, "O primeiro ponto de embarque é fixo.", Toast.LENGTH_SHORT).show()
+                                return@ReorderableColumn
+                            }
+                            val nova = grupo.toMutableList().apply { add(para, removeAt(de)) }
+                            reordenar(mapa, nova.map { it.second.id })
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { indice, (m, r), _ ->
+                        key(r.id) {
+                            Column {
+                                if (indice > 0) divisor()
+                                linha(
+                                    m,
+                                    r,
+                                    if (!podeArrastar) null
+                                    else if (indice == 0) Modifier
+                                    else Modifier.draggableHandle(),
+                                    indice == 0,
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                visiveis.forEachIndexed { index, (mapa, reserva) ->
+                    if (index > 0) divisor()
+                    linha(mapa, reserva, null, false)
+                }
+            }
+        }
+    }
+}
+
+/** A alça de arrastar da lista (igual ao Mapa); o 1º ponto fica com ela apagada. */
+@Composable
+private fun AlcaArrastar(alca: Modifier, fixo: Boolean) {
+    Icon(
+        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_lucide_grip_vertical),
+        contentDescription = if (fixo) "Primeiro ponto fixo" else "Arrastar para reordenar",
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (fixo) 0.3f else 1f),
+        modifier = Modifier
+            .padding(end = 6.dp, top = 2.dp)
+            .size(20.dp)
+            .then(alca),
+    )
+}
+
+/** "Todos os passeios" + um item por passeio — o select do web, para o admin. */
+@Composable
+private fun FiltroPasseio(
+    passeios: List<Pair<String, String>>,
+    selecionado: String?,
+    aoEscolher: (String?) -> Unit,
+) {
+    var aberto by remember { mutableStateOf(false) }
+    val rotulo = passeios.firstOrNull { it.first == selecionado }?.second ?: "Todos os passeios"
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(FormaBotaoPequeno)
+                .border(1.dp, MaterialTheme.colorScheme.outline, FormaBotaoPequeno)
+                .clickable { aberto = true }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                rotulo,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = "Filtrar por passeio")
+        }
+        androidx.compose.material3.DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Todos os passeios") },
+                onClick = { aoEscolher(null); aberto = false },
+            )
+            passeios.forEach { (id, nome) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(nome) },
+                    onClick = { aoEscolher(id); aberto = false },
                 )
             }
         }
@@ -1158,24 +1544,32 @@ private fun LinhaDoPonto(
     bloqueado: Boolean,
     aoTocar: () -> Unit,
     aoEditar: () -> Unit,
+    /** Visão "Todos": o guia e o passeio do mapa entram no subtítulo (web). */
+    guiaEPasseio: String? = null,
+    /** Alça de arrastar (null = sem alça). */
+    alca: Modifier? = null,
+    fixo: Boolean = false,
 ) {
     val feito = resolvida(reserva.status?.id)
     val qtdPax = reserva.adt + reserva.chd + reserva.inf
-    // Igual ao web: nome · Apto · N pax · idioma
+    // Igual ao web: nome · Apto · N pax · idioma (· guia · passeio, em "Todos")
     val subtitulo = listOfNotNull(
         reserva.pax?.takeIf { it.isNotBlank() } ?: "—",
         reserva.apto?.takeIf { it.isNotBlank() }
             ?.let { stringResource(R.string.embarque_apto, it) },
         stringResource(R.string.embarque_lista_pax, qtdPax),
         reserva.idioma?.takeIf { it.isNotBlank() }?.uppercase(Locale.US),
+        guiaEPasseio,
     ).joinToString(" · ")
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = aoTocar)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(start = if (alca != null) 6.dp else 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
     ) {
+        alca?.let { AlcaArrastar(it, fixo) }
         Text(
             text = reserva.hora?.take(5) ?: "—",
             style = MaterialTheme.typography.titleMedium,
@@ -1219,6 +1613,16 @@ private fun LinhaDoPonto(
             modifier = Modifier.padding(start = 8.dp),
         ) {
             Selo(reserva.status?.id, reserva.status?.nome)
+
+            // Acerto confirmado: a reserva aparece (visão "Todos") só para consulta.
+            if (bloqueado) {
+                Text(
+                    text = "ACERTO FECHADO",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             when {
                 atraso != null && atraso.minutos > 0 -> EtiquetaAtraso(
@@ -1345,4 +1749,64 @@ private fun isoDeMillisUtc(ms: Long): String {
         cal.get(Calendar.MONTH) + 1,
         cal.get(Calendar.DAY_OF_MONTH),
     )
+}
+
+/**
+ * Ponto ainda travado na lista (não é a vez dele) — o mesmo card travado do
+ * Mapa de embarque: horário, ponto, cliente e contato. Sem check-in, sem
+ * status, sem endereço.
+ */
+@Composable
+private fun LinhaTravada(reserva: ReservaEmbarque, alca: Modifier? = null, fixo: Boolean = false) {
+    val telefone = reserva.telefone?.takeIf { it.isNotBlank() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(start = if (alca != null) 6.dp else 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // O guia reordena também os pontos travados (igual ao Mapa de embarque).
+        alca?.let { AlcaArrastar(it, fixo) }
+        Text(
+            text = reserva.hora?.take(5) ?: "—",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.width(52.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = reserva.embarque.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            // Reserva com "+ Pax" no painel: um contato por pax, igual ao web.
+            val paxLinhas = paxDaReserva(reserva)
+            if (paxLinhas.isNotEmpty()) {
+                ListaPax(paxLinhas, modifier = Modifier.padding(top = 4.dp), tamanho = 12.sp)
+            } else if (reserva.pax != null || telefone != null) {
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    reserva.pax?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    telefone?.let { TelefonePax(it, tamanho = 12.sp) }
+                }
+            }
+        }
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_lucide_lock),
+            contentDescription = "Bloqueado",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp).size(18.dp),
+        )
+    }
 }

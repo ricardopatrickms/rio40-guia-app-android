@@ -117,6 +117,11 @@ fun DialogCheckInEmbarque(
     acoes: AcoesCheckIn,
     aoFechar: () -> Unit,
     aoRecarregar: () -> Unit,
+    /**
+     * Última reserva ainda em aberto do mapa (Geocheck-in): abre sozinha e não
+     * fecha até ter status — o mesmo popup obrigatório do Mapa de embarque.
+     */
+    obrigatorio: Boolean = false,
 ) {
     var erro by remember { mutableStateOf<String?>(null) }
     var pagamentoSalvo by remember { mutableStateOf(false) }
@@ -299,7 +304,7 @@ fun DialogCheckInEmbarque(
     val diferenca = centavos(somaBases - reserva.a_receber)
 
     AlertDialog(
-        onDismissRequest = { if (!enviando && !salvandoStatus && !salvandoPagamento) aoFechar() },
+        onDismissRequest = { if (!obrigatorio && !enviando && !salvandoStatus && !salvandoPagamento) aoFechar() },
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -607,14 +612,21 @@ fun DialogCheckInEmbarque(
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
-                TextButton(
-                    onClick = aoFechar,
-                    enabled = !enviando && !salvandoStatus && !salvandoPagamento,
-                ) {
-                    Text(stringResource(R.string.fechar))
+                // Popup obrigatório: sem "Fechar" — só sai marcando o status.
+                if (!obrigatorio) {
+                    TextButton(
+                        onClick = aoFechar,
+                        enabled = !enviando && !salvandoStatus && !salvandoPagamento,
+                    ) {
+                        Text(stringResource(R.string.fechar))
+                    }
                 }
             }
         },
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = !obrigatorio,
+            dismissOnClickOutside = !obrigatorio,
+        ),
     )
 
     if (dialogoMotivo) {

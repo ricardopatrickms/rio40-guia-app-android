@@ -79,11 +79,24 @@ android {
     val painelDeDebug = (project.findProperty("guiascale.painelUrl") as String?)
         ?: "http://10.0.2.2:8000/"
 
+    /*
+     * Reverb (tempo real do Geocheck-in): o MESMO servidor do web. A chave do app
+     * é pública (vai no bundle do web também). Local: o Reverb da comunicação na 8081.
+     */
+    val reverbDeDebug = (project.findProperty("guiascale.reverbHost") as String?) ?: "10.0.2.2"
+    val reverbPortaDeDebug = (project.findProperty("guiascale.reverbPort") as String?) ?: "8081"
+    val reverbChaveDeDebug = (project.findProperty("guiascale.reverbKey") as String?) ?: "opx8lx6vovc4gfjtu95f"
+    val reverbChaveServidor = "788fa5fcae01ab3ab5c25c31cb1d0151"
+
     buildTypes {
         debug {
             isMinifyEnabled = false
             buildConfigField("String", "API_URL", "\"$apiDeDebug\"")
             buildConfigField("String", "PAINEL_URL", "\"$painelDeDebug\"")
+            buildConfigField("String", "REVERB_HOST", "\"$reverbDeDebug\"")
+            buildConfigField("int", "REVERB_PORT", reverbPortaDeDebug)
+            buildConfigField("boolean", "REVERB_TLS", "false")
+            buildConfigField("String", "REVERB_KEY", "\"$reverbChaveDeDebug\"")
         }
         /*
          * homolog: APK para o pessoal testar contra o ambiente de homologação.
@@ -103,12 +116,20 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             buildConfigField("String", "API_URL", "\"https://api-homol-guide.titanx.ia.br/api/\"")
             buildConfigField("String", "PAINEL_URL", "\"https://api-homol-painel.titanx.ia.br/\"")
+            buildConfigField("String", "REVERB_HOST", "\"reverb.titanx.ia.br\"")
+            buildConfigField("int", "REVERB_PORT", "443")
+            buildConfigField("boolean", "REVERB_TLS", "true")
+            buildConfigField("String", "REVERB_KEY", "\"$reverbChaveServidor\"")
         }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "API_URL", "\"https://api-guide.titanx.ia.br/api/\"")
             buildConfigField("String", "PAINEL_URL", "\"https://api-painel.titanx.ia.br/\"")
+            buildConfigField("String", "REVERB_HOST", "\"reverb.titanx.ia.br\"")
+            buildConfigField("int", "REVERB_PORT", "443")
+            buildConfigField("boolean", "REVERB_TLS", "true")
+            buildConfigField("String", "REVERB_KEY", "\"$reverbChaveServidor\"")
             // Sem keystore de produção no projeto: assina com a chave de DEBUG
             // só para o APK ser instalável. Mesmo pacote+SHA-1 do debug, então o
             // Maps funciona. NÃO é assinatura real de produção (trocar quando houver keystore).

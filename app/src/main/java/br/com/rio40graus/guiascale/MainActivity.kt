@@ -1501,6 +1501,14 @@ private fun Tela(
             // Admin: qual guia está sendo inspecionado. Trocar recarrega as telas.
             // A chave muda tanto por login (usu_id) quanto por parceiro sem login.
             var guiaInspKey by remember { mutableStateOf(Sessao.chaveInspecao()) }
+            val escopoTela = androidx.compose.runtime.rememberCoroutineScope()
+            // Geocheck-in do admin: "Todos" no seletor (todos os guias do dia no mapa).
+            var geocheckinTodos by remember { mutableStateOf(false) }
+            // Data do Geocheck-in: o seletor de guia do admin, nessa aba, lista só
+            // quem tem escala nela (igual ao web). Fica aqui para sobreviver à troca de guia.
+            var dataGeocheckin by remember {
+                mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()))
+            }
 
             Column(modifier = Modifier.fillMaxSize()) {
                 CabecalhoTopo(
@@ -1515,7 +1523,11 @@ private fun Tela(
                         aba = aba,
                         usuAtualId = Sessao.guiaInspecionadoId,
                         parAtualId = Sessao.guiaInspecionadoParId,
+                        dataDoDia = if (aba == Aba.CHECK_IN) dataGeocheckin else null,
+                        todosSelecionado = aba == Aba.CHECK_IN && geocheckinTodos,
+                        aoSelecionarTodos = { geocheckinTodos = true },
                         aoSelecionar = { usuId, parId, nome ->
+                            geocheckinTodos = false
                             Sessao.guardarGuiaInspecionado(contexto, usuId, parId, nome)
                             guiaInspKey = Sessao.chaveInspecao()
                         },
@@ -1582,8 +1594,16 @@ private fun Tela(
                             aoMarcarChecklist = aoMarcarChecklist,
                         )
 
-                        Aba.CHECK_IN -> TelaEmbarque(
-                            aoCarregar = aoCarregarMapas,
+                        Aba.CHECK_IN -> key(geocheckinTodos) { TelaEmbarque(
+                            // "Todos": os mapas de todos os guias do dia (escala/mapa-embarque-dia).
+                            aoCarregar = if (Sessao.ehAdmin && geocheckinTodos) { data, aoTerminar ->
+                                escopoTela.launch {
+                                    runCatching { Rede.api.mapasDoDiaAdmin(data).mapas }
+                                        .onSuccess { aoTerminar(it, null) }
+                                        .onFailure { aoTerminar(null, it.message ?: "Erro ao carregar os mapas do dia") }
+                                }
+                                Unit
+                            } else aoCarregarMapas,
                             aoTrocarStatus = aoCheckIn,
                             aoCarregarMotivos = aoCarregarMotivos,
                             aoCarregarFormas = aoCarregarFormas,
@@ -1607,7 +1627,33 @@ private fun Tela(
                                 }
                             },
                             aoCarregarTrajeto = aoCarregarTrajeto,
-                        )
+                            dataInicial = dataGeocheckin,
+                            aoTrocarData = { dataGeocheckin = it },
+                            // Admin: o mapa mostra o GUIA inspecionado (posição + nome), como no web.
+                            todosGuias = Sessao.ehAdmin && geocheckinTodos,
+                            // Arrastar na lista salva na mesma rota do Mapa de embarque (só o guia).
+                            aoOrdenarReservas = if (Sessao.ehAdmin) null else aoOrdenarReservas,
+                            aoCarregarTodosAdmin = if (Sessao.ehAdmin) { data, aoTerminar ->
+                                escopoTela.launch {
+                                    aoTerminar(runCatching { Rede.api.posicoesTodosAdmin(data) }.getOrNull())
+                                }
+                            } else null,
+                            usuIdTempoReal = if (Sessao.ehAdmin) {
+                                if (geocheckinTodos) null else Sessao.guiaInspecionadoId
+                            } else {
+                                Sessao.usuId
+                            },
+                            aoCarregarGuiaAdmin = if (Sessao.ehAdmin && !geocheckinTodos) { data, aoTerminar ->
+                                val usuId = Sessao.guiaInspecionadoId
+                                if (usuId == null) {
+                                    aoTerminar(null)
+                                } else {
+                                    escopoTela.launch {
+                                        aoTerminar(runCatching { Rede.api.posicoesAdmin(usuId, data) }.getOrNull())
+                                    }
+                                }
+                            } else null,
+                        ) }
 
                         Aba.RADAR -> TelaRadar()
 
@@ -1747,6 +1793,36 @@ private fun mesclarGuias(
 }
 
 /**
+ * Guias com escala no dia — titulares e apoios, sem cancelados. Mesma regra do
+ * useGuiasEscaladosDoDia do web: cruza a escala com a lista completa (para ter
+ * o usu_id) e, se o parceiro não estiver nela, entra pelo nome da escala.
+ */
+private fun guiasEscalados(
+    escalas: List<br.com.rio40graus.guiascale.rede.EscalaDoDia>,
+    todos: List<GuiaInspecao>,
+): List<GuiaInspecao> {
+    val porPar = todos.associateBy { it.parId }
+    val doDia = LinkedHashMap<Int, GuiaInspecao>()
+    for (e in escalas) {
+        if (e.status.equals("cancelado", ignoreCase = true)) continue
+        listOf(e.par_id to e.guide_name, (e.support_par_id ?: 0) to e.support_guide_name)
+            .forEach { (parId, nomeEscala) ->
+                if (parId <= 0 || doDia.containsKey(parId)) return@forEach
+                val conhecido = porPar[parId]
+                val nome = conhecido?.nome ?: nomeEscala?.trim().orEmpty()
+                if (nome.isEmpty()) return@forEach
+                doDia[parId] = GuiaInspecao(
+                    parId = parId,
+                    usuId = conhecido?.usuId,
+                    nome = nome,
+                    status = StatusGuia.ATIVO,
+                )
+            }
+    }
+    return doDia.values.sortedBy { semAcento(it.nome) }
+}
+
+/**
  * Tarja de função do administrador — espelho do TarjaDeFuncao.tsx + do
  * SeletorGuiaAdmin.tsx do web.
  *
@@ -1759,26 +1835,62 @@ private fun SeletorGuiaAdmin(
     aba: Aba,
     usuAtualId: Int?,
     parAtualId: Int?,
+    /**
+     * Geocheck-in: a data da tela. Com ela, a lista mostra só os guias com escala
+     * nesse dia (titular ou apoio, sem cancelados) — a regra do web
+     * (useGuiasEscaladosDoDia). null = lista completa, como nas outras abas.
+     */
+    dataDoDia: String? = null,
+    /** Geocheck-in: "Todos" está escolhido (todos os guias do dia no mapa). */
+    todosSelecionado: Boolean = false,
+    /** Geocheck-in: escolheu "Todos". null = a opção não aparece. */
+    aoSelecionarTodos: (() -> Unit)? = null,
     aoSelecionar: (usuId: Int?, parId: Int?, nome: String?) -> Unit,
 ) {
-    var guias by remember { mutableStateOf<List<GuiaInspecao>>(emptyList()) }
+    var todosOsGuias by remember { mutableStateOf<List<GuiaInspecao>>(emptyList()) }
     var carregando by remember { mutableStateOf(true) }
     var dialogAberto by remember { mutableStateOf(false) }
+
+    // Escalados do dia (só quando há data). null = ainda carregando.
+    var escaladosDoDia by remember(dataDoDia) { mutableStateOf<List<GuiaInspecao>?>(null) }
+    LaunchedEffect(dataDoDia, carregando) {
+        val data = dataDoDia ?: return@LaunchedEffect
+        if (carregando) return@LaunchedEffect
+        val escalas = runCatching { Rede.api.escalaDoDia(data).escalas }
+            .onFailure { android.util.Log.e("SeletorGuia", "escala falhou", it) }
+            .getOrNull()
+            ?: return@LaunchedEffect
+        escaladosDoDia = guiasEscalados(escalas, todosOsGuias)
+    }
+
+    val guias = if (dataDoDia != null) escaladosDoDia.orEmpty() else todosOsGuias
+
+    // Geocheck-in: se o guia escolhido não trabalha no dia, assume o primeiro
+    // escalado — igual ao web, para a tela não abrir vazia sem dizer por quê.
+    LaunchedEffect(escaladosDoDia) {
+        val doDia = escaladosDoDia ?: return@LaunchedEffect
+        if (dataDoDia == null || doDia.isEmpty() || todosSelecionado) return@LaunchedEffect
+        val estaNoDia = doDia.any {
+            (usuAtualId != null && it.usuId == usuAtualId) ||
+                (usuAtualId == null && parAtualId != null && it.parId == parAtualId)
+        }
+        if (!estaNoDia) doDia.first().let { aoSelecionar(it.usuId, it.parId, it.nome) }
+    }
 
     LaunchedEffect(Unit) {
         val selectOptions = runCatching { Rede.api.guiasSelect().guias }.getOrDefault(emptyList())
         val candidatos = runCatching { Rede.api.candidatos().candidatos }.getOrDefault(emptyList())
-        guias = mesclarGuias(selectOptions, candidatos)
+        todosOsGuias = mesclarGuias(selectOptions, candidatos)
         carregando = false
         // Já entra com o primeiro ativo selecionado, se nada foi escolhido —
         // assim o admin cai direto no painel de alguém, sem tela vazia.
-        if (usuAtualId == null && parAtualId == null) {
-            (guias.firstOrNull { it.status == StatusGuia.ATIVO } ?: guias.firstOrNull())
+        if (usuAtualId == null && parAtualId == null && dataDoDia == null) {
+            (todosOsGuias.firstOrNull { it.status == StatusGuia.ATIVO } ?: todosOsGuias.firstOrNull())
                 ?.let { aoSelecionar(it.usuId, it.parId, it.nome) }
         }
     }
 
-    val atual = guias.firstOrNull {
+    val atual = (guias + todosOsGuias).firstOrNull {
         (usuAtualId != null && it.usuId == usuAtualId) ||
             (usuAtualId == null && parAtualId != null && it.parId == parAtualId)
     }
@@ -1832,7 +1944,8 @@ private fun SeletorGuiaAdmin(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            atual?.nome ?: if (carregando) "Carregando…" else "Selecione um guia",
+                            if (todosSelecionado) "Todos"
+                            else atual?.nome ?: if (carregando) "Carregando…" else "Selecione um guia",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
@@ -1847,6 +1960,21 @@ private fun SeletorGuiaAdmin(
     if (dialogAberto) {
         DialogSeletorGuia(
             guias = guias,
+            // Geocheck-in: "Todos" no topo da lista, como no web.
+            opcaoTodos = if (dataDoDia != null && aoSelecionarTodos != null) {
+                {
+                    aoSelecionarTodos()
+                    dialogAberto = false
+                }
+            } else {
+                null
+            },
+            todosSelecionado = todosSelecionado,
+            textoVazio = if (dataDoDia != null) {
+                if (escaladosDoDia == null) "Carregando…" else "Nenhum guia escalado neste dia"
+            } else {
+                "Nenhum guia encontrado"
+            },
             usuAtualId = usuAtualId,
             parAtualId = parAtualId,
             aoFechar = { dialogAberto = false },
@@ -1862,6 +1990,10 @@ private fun SeletorGuiaAdmin(
 @Composable
 private fun DialogSeletorGuia(
     guias: List<GuiaInspecao>,
+    /** Item "Todos" no topo (Geocheck-in). null = não aparece. */
+    opcaoTodos: (() -> Unit)? = null,
+    todosSelecionado: Boolean = false,
+    textoVazio: String = "Nenhum guia encontrado",
     usuAtualId: Int?,
     parAtualId: Int?,
     aoFechar: () -> Unit,
@@ -1933,13 +2065,35 @@ private fun DialogSeletorGuia(
                 }
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider()
+                opcaoTodos?.let { escolherTodos ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { escolherTodos() }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = if (todosSelecionado) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Todos",
+                            fontWeight = if (todosSelecionado) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
                 if (filtrados.isEmpty()) {
                     Box(
                         Modifier.fillMaxWidth().padding(vertical = 24.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "Nenhum guia encontrado",
+                            textoVazio,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -1947,8 +2101,10 @@ private fun DialogSeletorGuia(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                         items(filtrados, key = { it.parId }) { g ->
-                            val selecionado = (usuAtualId != null && g.usuId == usuAtualId) ||
-                                (usuAtualId == null && parAtualId != null && g.parId == parAtualId)
+                            val selecionado = !todosSelecionado && (
+                                (usuAtualId != null && g.usuId == usuAtualId) ||
+                                    (usuAtualId == null && parAtualId != null && g.parId == parAtualId)
+                                )
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2259,7 +2415,9 @@ private fun CabecalhoTopo(
                             }
                         }
                         HorizontalDivider()
-                        DropdownMenuItem(
+                        // Só o guia troca a própria foto (rota guia/foto, token do guia) —
+                        // igual ao web (isGuia). O admin levava 401.
+                        if (!Sessao.ehAdmin) DropdownMenuItem(
                             text = {
                                 Text(if (enviandoFoto) "Enviando foto..." else "Subir foto")
                             },
